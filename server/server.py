@@ -10,7 +10,31 @@ mongo_host = os.getenv('MONGO_HOST', 'localhost')
 mongo_port = int(os.getenv('MONGO_PORT', '27017'))
 mongo_client = MongoClient(mongo_host, mongo_port)
 db = mongo_client.db
+users_collection = db.users
 keys_collection = db.keys
+
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+
+    try:
+        username = data['username']
+        password = data['password']
+
+        #Check if the username is already registered
+        if db.users.find_one({'username': username}):
+            return jsonify({'error': 'Username already registered!'}), 400
+
+        #Save user on MongoDB
+        db.users.insert_one({
+            'username': username,
+            'password': password
+        })
+
+        return jsonify({'message': 'Successly registered user!'}), 200
+
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
 @app.route('/upload', methods=['POST'])
 def upload_keys():
@@ -61,7 +85,7 @@ def upload_keys():
         })
 
 
-        return jsonify({'message': 'Success uploaded key bundle!'}), 200
+        return jsonify({'message': 'Successly uploaded key bundle!'}), 200
 
     except (KeyError, binascii.Error) as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400

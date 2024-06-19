@@ -17,6 +17,14 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+  
+  bob:
+    build: ../client
+    tty: true
+
+  alice:
+    build: ../client
+    tty: true 
 
 volumes:
   mongo-data:
