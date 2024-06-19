@@ -4,7 +4,7 @@ services:
   flask-server:
     build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       - MONGO_HOST=mongodb
       - MONGO_PORT=27017
