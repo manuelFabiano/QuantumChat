@@ -12,6 +12,7 @@ mongo_client = MongoClient(mongo_host, mongo_port)
 db = mongo_client.db
 keys_collection = db.keys
 
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
@@ -19,6 +20,10 @@ def register():
     try:
         username = data['username']
         password = data['password']
+        public_identity_key= data["public_keys"]["public_identity_key"]
+        public_prekey= data["public_keys"]["public_prekey"]
+        sign_on_prekey= data["public_keys"]["sign_on_prekey"]
+        public_one_time_prekeys= data["public_keys"]["public_one_time_prekeys"]
 
         #Check if the username is already registered
         if keys_collection.find_one({'username': username}):
@@ -27,7 +32,11 @@ def register():
         #Save user on MongoDB
         keys_collection.insert_one({
             'username': username,
-            'password': password
+            'password': password,
+            "public_identity_key": public_identity_key,
+            "public_prekey" : public_prekey,
+            "sign_on_prekey" : sign_on_prekey,
+            "public_one_time_prekeys" : public_one_time_prekeys
         })
 
         return jsonify({'message': 'Successly registered user!'}), 200
