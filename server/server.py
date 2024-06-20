@@ -10,7 +10,6 @@ mongo_host = os.getenv('MONGO_HOST', 'localhost')
 mongo_port = int(os.getenv('MONGO_PORT', '27017'))
 mongo_client = MongoClient(mongo_host, mongo_port)
 db = mongo_client.db
-users_collection = db.users
 keys_collection = db.keys
 
 @app.route('/register', methods=['POST'])
@@ -22,11 +21,11 @@ def register():
         password = data['password']
 
         #Check if the username is already registered
-        if db.users.find_one({'username': username}):
+        if keys_collection.find_one({'username': username}):
             return jsonify({'error': 'Username already registered!'}), 400
 
         #Save user on MongoDB
-        db.users.insert_one({
+        keys_collection.insert_one({
             'username': username,
             'password': password
         })
@@ -72,6 +71,7 @@ def upload_keys():
 
 
         #Save keys on MongoDB
+        #TODO: Da cambiare in modo che venga salvato nel documento (già esistente) dell'utente
         keys_collection.insert_one({
             'identity_public_key': identity_public_key,
             'signed_curve_prekey': signed_curve_prekey,
