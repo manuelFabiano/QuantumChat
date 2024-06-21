@@ -4,6 +4,7 @@ WORKDIR /client
 
 COPY requirements.txt ../client/requirements.txt
 COPY client.py ../client/client.py
+COPY kyberpy ../client/kyberpy
 
 RUN pip install --no-cache-dir -r requirements.txt
 
