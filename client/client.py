@@ -138,6 +138,10 @@ def register(username, password,public_keys):
 def login(username,password):
     pass
 
+def fetch_key_bundle(username):
+    url = f"{SERVER}/fetch_prekey_bundle/{username}"
+    response = requests.get(url)
+    return response
 
 def menu_user(username):
     print(f"Welcome {username}!")
@@ -197,7 +201,6 @@ def main():
 
             if response.status_code == 200:
                 menu_user(username)
-               
            
 
 
