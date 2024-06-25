@@ -51,13 +51,13 @@ def export_keys(data):
 
 #generate public and private keys
 def generate_keys():
-    # Mancano identificatori per le chiavi!!!
+    # Mancano identificatori per le chiavi!!! Mi scuddai
     # Curve keys
     private_identity_key = Ed25519PrivateKey.generate()
     public_identity_key = private_identity_key.public_key()
     private_prekey = Ed25519PrivateKey.generate()
     public_prekey = private_prekey.public_key()
-    # La firma deve essere fatta con la identity key?
+    # La firma deve essere fatta con la identity key? Si
     sign_on_prekey = private_identity_key.sign(public_prekey.public_bytes(
     encoding=serialization.Encoding.Raw,
     format=serialization.PublicFormat.Raw
@@ -135,36 +135,69 @@ def register(username, password,public_keys):
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
     return response
 
+def login(username,password):
+    pass
+
+
+def menu_user(username):
+    print(f"Welcome {username}!")
+    print("Main menu\n")
+    print("1. Chats")
+    print("2. Groups")
+    print("0. Back")
+    choice = input("Enter your choice: ")
+    if choice == "0":
+        return
+    if choice == "1":
+        print("Chats")
+        
+
+
 def main():
+    while 1:
     
-    print("Welcome to QuantumChat!")
-
-    username = input("Enter your username: ")
-    password = input("Enter your password: ")
-
-    #Hash the password
-    digest = hashes.Hash(hashes.SHA256())
-    digest.update(password.encode())
-    password = digest.finalize()
-    
-    
-    public_keys = generate_keys()
-
-    #Register the user
-    response = register(username, password, public_keys)
-
-    print(response.text)
-
-    if response.status_code == 200:
-        print("Main menu\n")
-        print("1. Users")
-        print("2. Groups")
+        print("Welcome to QuantumChat!")
+        print("")
+        print("Select a choice: ")
+        print("1. Login")
+        print("2. Register")
         print("0. Exit")
 
-        choice = input("Enter your choice: ")
+        choice = input()
 
-        if choice == "1":
-            print("Users")
+        if choice == "0":
+            exit()
+        elif choice == "1":
+            print("Login Menu")
+            print("")
+            username = input("Enter your username: ")
+            password = input("Enter your password: ")
+            #Hash the password
+            digest = hashes.Hash(hashes.SHA256())
+            digest.update(password.encode())
+            password = digest.finalize()
+            login(username, password)
+
+        elif choice == "2":
+            print("Register Menu")
+            print("")
+            username = input("Enter your username: ")
+            password = input("Enter your password: ")
+            #Hash the password
+            digest = hashes.Hash(hashes.SHA256())
+            digest.update(password.encode())
+            password = digest.finalize()
+        
+            public_keys = generate_keys()
+
+            #Register the user
+            response = register(username, password, public_keys)
+
+            print(response.text)
+
+            if response.status_code == 200:
+                menu_user(username)
+               
            
 
 
