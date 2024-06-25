@@ -13,6 +13,25 @@ db = mongo_client.db
 keys_collection = db.keys
 
 
+@app.route('/login',methods=['POST'])
+def login():
+    data = request.get_json()
+
+    try:
+        username = data['username']
+        password = data['password']
+
+         #Check if the username and password are correct
+        if keys_collection.find_one({'username': username, 'password': password}):
+             return jsonify({'message': 'Successfully login!'}), 200
+        else:
+            return jsonify({'error': 'Wrong username and/or password'}), 400
+
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
+
+
+
 @app.route('/register', methods=['POST'])
 def register():
     data = request.get_json()

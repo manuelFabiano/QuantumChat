@@ -136,8 +136,14 @@ def register(username, password,public_keys):
     return response
 
 def login(username,password):
-    pass
-
+    url = SERVER + "/login"
+    payload = {
+        "username": username,
+        "password": str(password),
+     }
+    payload = json.dumps(payload, indent=4)
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    return response
 
 def menu_user(username):
     print(f"Welcome {username}!")
@@ -176,7 +182,13 @@ def main():
             digest = hashes.Hash(hashes.SHA256())
             digest.update(password.encode())
             password = digest.finalize()
-            login(username, password)
+            #Login
+            response = login(username, password)
+
+            if response.status_code == 200:
+                menu_user(username)
+            else: 
+                print(response.text)
 
         elif choice == "2":
             print("Register Menu")
@@ -192,8 +204,6 @@ def main():
 
             #Register the user
             response = register(username, password, public_keys)
-
-            print(response.text)
 
             if response.status_code == 200:
                 menu_user(username)
