@@ -155,6 +155,17 @@ def main():
 
     print(response.text)
 
+    if response.status_code == 200:
+        print("Main menu\n")
+        print("1. Users")
+        print("2. Groups")
+        print("3. Exit")
+
+        choice = input("Enter your choice: ")
+
+        if choice == "1":
+            
+
 if __name__ == "__main__":
     main()
 
