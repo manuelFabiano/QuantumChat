@@ -159,7 +159,7 @@ def main():
         print("Main menu\n")
         print("1. Users")
         print("2. Groups")
-        print("3. Exit")
+        print("0. Exit")
 
         choice = input("Enter your choice: ")
 
