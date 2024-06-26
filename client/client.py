@@ -9,6 +9,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
 from kyberpy import kyber
 import json
+import time
 
 #Server URL
 SERVER = "http://flask-server:5000"
@@ -25,11 +26,12 @@ class Ed25519PrivateKeyEncoder(json.JSONEncoder):
                 format=serialization.PrivateFormat.PKCS8,
                 encryption_algorithm=serialization.NoEncryption()
             )
-            # Convert bytes to string and return
-            return pem_private_key.decode('utf-8')
+            # Convert bytes to hex string and return
+            return pem_private_key.hex()
         return super().default(obj)
 
 # Custom decoder to deserialize JSON string to Ed25519PrivateKey
+'''DA SISTEMARE'''
 def ed25519_private_key_decoder(data):
     if '__Ed25519PrivateKey__' in data:
         private_key_bytes = data['__Ed25519PrivateKey__'].encode('utf-8')
@@ -49,64 +51,64 @@ def export_keys(data):
     with open("keys.json","w") as file:
         json.dump(data, file, cls=Ed25519PrivateKeyEncoder, indent=4)
 
+#Serialize public keys
+def public_serialization(key):
+    return key.public_bytes(encoding=serialization.Encoding.Raw,
+    format=serialization.PublicFormat.Raw).hex()
 
 #generate public and private keys
 def generate_keys():
     # Mancano identificatori per le chiavi!!! Mi scuddai
     # Curve keys
     private_identity_key = Ed25519PrivateKey.generate()
-    public_identity_key = private_identity_key.public_key()
-    private_prekey = Ed25519PrivateKey.generate()
-    public_prekey = private_prekey.public_key()
-    # La firma deve essere fatta con la identity key? Si
-    sign_on_prekey = private_identity_key.sign(public_prekey.public_bytes(
-    encoding=serialization.Encoding.Raw,
-    format=serialization.PublicFormat.Raw
-    ))
+    public_identity_key = public_serialization(private_identity_key.public_key())
+    id = time.time_ns()
+    private_prekey = {"key": Ed25519PrivateKey.generate(), "id": id}
+    public_prekey = {"key":public_serialization(private_prekey["key"].public_key()), "id" :id}
+    sign_on_prekey = private_identity_key.sign(public_prekey["key"].encode('utf-8')).hex()
     private_one_time_prekeys = list()
     public_one_time_prekeys = list()
     for i in range(5):
-        private_one_time_prekeys.append(Ed25519PrivateKey.generate())
-        public_one_time_prekeys.append(private_one_time_prekeys[i].public_key())
+        id = time.time_ns()
+        private_one_time_prekeys.append({"key":Ed25519PrivateKey.generate(), "id": id})
+        public_one_time_prekeys.append({"key":public_serialization(private_one_time_prekeys[i]["key"].public_key()), "id": id})
 
     # Kyber keys:
+    id = time.time_ns()
     private_last_resort_pqkem_key , public_last_resort_pqkem_kyber_key = kyber.Kyber512.keygen()
-    sign_on_last_resort_pqkem_key = private_identity_key.sign(public_last_resort_pqkem_kyber_key)
+    private_last_resort_pqkem_key = {"key": private_last_resort_pqkem_key.hex(), "id": id}
+    public_last_resort_pqkem_kyber_key = {"key":public_last_resort_pqkem_kyber_key.hex(), "id":id}
+    sign_on_last_resort_pqkem_key = private_identity_key.sign(public_last_resort_pqkem_kyber_key["key"].encode('utf-8')).hex()
 
     private_one_time_pqkem_prekeys = list()
     public_one_time_pqkem_prekeys = list()
     sign_on_one_time_pqkem_prekeys = list()
 
     for i in range(5):
+        id = time.time_ns()
         pqkem = kyber.Kyber512.keygen()
-        private_one_time_pqkem_prekeys.append(pqkem[0])
-        public_one_time_pqkem_prekeys.append(pqkem[1])
-        sign_on_one_time_pqkem_prekeys.append(private_identity_key.sign(pqkem[1]))
+        private_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id})
+        public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id })
+        sign_on_one_time_pqkem_prekeys.append(private_identity_key.sign(pqkem[1]).hex())
 
     # Json Data structure containing private keys
     private_keys = {
         "private_identity_key": private_identity_key,
         "private_prekey": private_prekey,
         "private_one_time_prekeys" : private_one_time_prekeys,
-        "private_last_resort_pqkem_key" : str(private_last_resort_pqkem_key),
-        "private_one_time_pqkem_prekeys" : str(private_one_time_pqkem_prekeys)
+        "private_last_resort_pqkem_key" : private_last_resort_pqkem_key,
+        "private_one_time_pqkem_prekeys" : private_one_time_pqkem_prekeys
     }
 
     public_keys = {
-        "public_identity_key": public_identity_key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw),
-        "public_prekey" : public_prekey.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw),
+        "public_identity_key": public_identity_key,
+        "public_prekey" :public_prekey,
         "sign_on_prekey" : sign_on_prekey,
-        "public_one_time_prekeys" : [key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw) for key in public_one_time_prekeys ],
+        "public_one_time_prekeys" : public_one_time_prekeys,
         "public_last_resort_pqkem_key" : public_last_resort_pqkem_kyber_key,
         "sign_on_last_resort_pqkem_key" : sign_on_last_resort_pqkem_key,
-        "public_one_time_pqkem_prekeys" : [key for key in public_one_time_pqkem_prekeys],
-        "sign_on_one_time_pqkem_prekeys" : [sign for sign in sign_on_one_time_pqkem_prekeys]
+        "public_one_time_pqkem_prekeys" : public_one_time_pqkem_prekeys,
+        "sign_on_one_time_pqkem_prekeys" : sign_on_one_time_pqkem_prekeys
     }
 
     export_keys(private_keys)
@@ -120,17 +122,8 @@ def register(username, password,public_keys):
     # Mancano gli identifier delle chiavi?
     payload = {
         "username": username,
-        "password": str(password),
-        "public_keys": {
-            "public_identity_key": str(public_keys["public_identity_key"]),
-            "public_prekey" : str(public_keys["public_prekey"]),
-            "sign_on_prekey" : str(public_keys["sign_on_prekey"]),
-            "public_one_time_prekeys" : [str(key) for key in public_keys["public_one_time_prekeys"] ],
-            "public_last_resort_pqkem_key" : str(public_keys["public_last_resort_pqkem_key"]),
-            "sign_on_last_resort_pqkem_key" : str(public_keys["sign_on_last_resort_pqkem_key"]),
-            "public_one_time_pqkem_prekeys" : [str(key) for key in public_keys["public_one_time_pqkem_prekeys"]],
-            "sign_on_one_time_pqkem_prekeys" : [str(sign) for sign in public_keys["sign_on_one_time_pqkem_prekeys"]]
-        }
+        "password": password,
+        "public_keys": public_keys
     }
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
@@ -209,6 +202,7 @@ def main():
             digest = hashes.Hash(hashes.SHA256())
             digest.update(password.encode())
             password = digest.finalize()
+            password = password.hex()
             #Login
             response = login(username, password)
 
@@ -226,7 +220,7 @@ def main():
             digest = hashes.Hash(hashes.SHA256())
             digest.update(password.encode())
             password = digest.finalize()
-        
+            password = password.hex()
             public_keys = generate_keys()
 
             #Register the user
