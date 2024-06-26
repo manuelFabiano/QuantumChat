@@ -145,6 +145,10 @@ def login(username,password):
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
     return response
+def fetch_key_bundle(username):
+    url = f"{SERVER}/fetch_prekey_bundle/{username}"
+    response = requests.get(url)
+    return response
 
 def menu_user(username):
     print(f"Welcome {username}!")
@@ -208,7 +212,6 @@ def main():
 
             if response.status_code == 200:
                 menu_user(username)
-               
            
 
 
