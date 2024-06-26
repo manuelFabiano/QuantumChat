@@ -41,12 +41,9 @@ def register():
         password = data['password']
         public_identity_key= data["public_keys"]["public_identity_key"]
         public_prekey= data["public_keys"]["public_prekey"]
-        sign_on_prekey= data["public_keys"]["sign_on_prekey"]
         public_one_time_prekeys= data["public_keys"]["public_one_time_prekeys"]
         public_last_resort_pqkem_key = data["public_keys"]["public_last_resort_pqkem_key"]
-        sign_on_last_resort_pqkem_key = data["public_keys"]["sign_on_last_resort_pqkem_key"]
         public_one_time_pqkem_prekeys = data["public_keys"]["public_one_time_pqkem_prekeys"]
-        sign_on_one_time_pqkem_prekeys = data["public_keys"]["sign_on_one_time_pqkem_prekeys"]
 
         #Check if the username is already registered
         if keys_collection.find_one({'username': username}):
@@ -59,12 +56,9 @@ def register():
             "public_keys":{
                 "public_identity_key": public_identity_key,
                 "public_prekey" : public_prekey,
-                "sign_on_prekey" : sign_on_prekey,
                 "public_one_time_prekeys" : public_one_time_prekeys,
                 "public_last_resort_pqkem_key" : public_last_resort_pqkem_key,
-                "sign_on_last_resort_pqkem_key" : sign_on_last_resort_pqkem_key,
                 "public_one_time_pqkem_prekeys" : public_one_time_pqkem_prekeys,
-                "sign_on_one_time_pqkem_prekeys" : sign_on_one_time_pqkem_prekeys
             }
         })
 
@@ -87,44 +81,29 @@ def fetch_prekey_bundle(username):
     # Get user keys:
     public_identity_key = public_keys.get("public_identity_key")
     public_prekey = public_keys.get("public_prekey")
-    # public_prekey_identifier = public_keys.get("public_prekey_identifier")  # Non ancora implementato
-    sign_on_prekey = public_keys.get("sign_on_prekey")
     
     # Get pqkem keys:
     public_one_time_pqkem_prekey_list = public_keys.get("public_one_time_pqkem_prekeys", [])
-    # public_one_time_pqkem_prekey_identifier_list = public_keys.get("public_one_time_pqkem_prekey_identifier", [])
-    sign_on_one_time_pqkem_prekey_list = public_keys.get("sign_on_one_time_pqkem_prekeys", [])
 
     if len(public_one_time_pqkem_prekey_list) > 0:
         public_one_time_pqkem_prekey = public_one_time_pqkem_prekey_list[0]
-        # public_one_time_pqkem_prekey_identifier = public_one_time_pqkem_prekey_identifier_list[0]
-        sign_on_one_time_pqkem_prekey = sign_on_one_time_pqkem_prekey_list[0]
         # Pop the keys from the database
         keys_collection.update_one(
             {"username": username},
             {"$pop": {
-                "public_keys.public_one_time_pqkem_prekeys": -1,
-                "public_keys.sign_on_one_time_pqkem_prekeys": -1
+                "public_keys.public_one_time_pqkem_prekeys": -1
             }}
         )
         public_last_resort_pqkem_key = None
-        # public_last_resort_pqkem_key_identifier = None
-        sign_on_last_resort_pqkem_key = None
     else:
         public_one_time_pqkem_prekey = None
-        # public_one_time_pqkem_prekey_identifier = None
-        sign_on_one_time_pqkem_prekey = None
         public_last_resort_pqkem_key = public_keys.get("public_last_resort_pqkem_key")
-        # public_last_resort_pqkem_key_identifier = public_keys.get("public_last_resort_pqkem_key_identifier")
-        sign_on_last_resort_pqkem_key = public_keys.get("sign_on_last_resort_pqkem_key")
     
     # Get one time curve keys:
     public_one_time_prekey_list = public_keys.get("public_one_time_pqkem_prekeys", [])
-    # public_one_time_prekey_identifier_list = public_keys.get("public_one_time_prekey_identifier", [])
     
     if len(public_one_time_prekey_list) > 0:
         public_one_time_prekey = public_one_time_prekey_list[0]
-        # public_one_time_prekey_identifier = public_one_time_prekey_identifier_list[0]
         # Pop the keys from the database
         keys_collection.update_one(
             {"username": username},
@@ -132,21 +111,13 @@ def fetch_prekey_bundle(username):
         )
     else:
         public_one_time_prekey = None
-        # public_one_time_prekey_identifier = None
     
     prekey_bundle = {
         "public_identity_key": public_identity_key,
         "public_prekey": public_prekey,
-        # "public_prekey_identifier": public_prekey_identifier,
-        "sign_on_prekey": sign_on_prekey,
         "public_one_time_prekey": public_one_time_prekey,
-        # "public_one_time_prekey_identifier": public_one_time_prekey_identifier,
         "public_one_time_pqkem_prekey": public_one_time_pqkem_prekey,
-        # "public_one_time_pqkem_prekey_identifier": public_one_time_pqkem_prekey_identifier,
-        "sign_on_one_time_pqkem_prekey": sign_on_one_time_pqkem_prekey,
-        "public_last_resort_pqkem_key": public_last_resort_pqkem_key,
-        # "public_last_resort_pqkem_key_identifier": public_last_resort_pqkem_key_identifier,
-        "sign_on_last_resort_pqkem_key": sign_on_last_resort_pqkem_key
+        "public_last_resort_pqkem_key": public_last_resort_pqkem_key
     } 
     return jsonify(prekey_bundle), 200
 

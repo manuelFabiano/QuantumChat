@@ -56,6 +56,12 @@ def public_serialization(key):
     return key.public_bytes(encoding=serialization.Encoding.Raw,
     format=serialization.PublicFormat.Raw).hex()
 
+#Deserialize public keys
+def public_deserialization(hex_key):
+    key_bytes = bytes.fromhex(hex_key)
+    return Ed25519PublicKey.from_public_bytes(key_bytes)
+
+
 #generate public and private keys
 def generate_keys():
     # Mancano identificatori per le chiavi!!! Mi scuddai
@@ -65,7 +71,7 @@ def generate_keys():
     id = time.time_ns()
     private_prekey = {"key": Ed25519PrivateKey.generate(), "id": id}
     public_prekey = {"key":public_serialization(private_prekey["key"].public_key()), "id" :id}
-    sign_on_prekey = private_identity_key.sign(public_prekey["key"].encode('utf-8')).hex()
+    public_prekey["sign"] = private_identity_key.sign(bytes.fromhex(public_prekey["key"])).hex()
     private_one_time_prekeys = list()
     public_one_time_prekeys = list()
     for i in range(5):
@@ -78,7 +84,7 @@ def generate_keys():
     private_last_resort_pqkem_key , public_last_resort_pqkem_kyber_key = kyber.Kyber512.keygen()
     private_last_resort_pqkem_key = {"key": private_last_resort_pqkem_key.hex(), "id": id}
     public_last_resort_pqkem_kyber_key = {"key":public_last_resort_pqkem_kyber_key.hex(), "id":id}
-    sign_on_last_resort_pqkem_key = private_identity_key.sign(public_last_resort_pqkem_kyber_key["key"].encode('utf-8')).hex()
+    public_last_resort_pqkem_kyber_key["sign"] = private_identity_key.sign(bytes.fromhex(public_last_resort_pqkem_kyber_key["key"])).hex()
 
     private_one_time_pqkem_prekeys = list()
     public_one_time_pqkem_prekeys = list()
@@ -88,8 +94,7 @@ def generate_keys():
         id = time.time_ns()
         pqkem = kyber.Kyber512.keygen()
         private_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id})
-        public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id })
-        sign_on_one_time_pqkem_prekeys.append(private_identity_key.sign(pqkem[1]).hex())
+        public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id, "sign":private_identity_key.sign(pqkem[1]).hex()})
 
     # Json Data structure containing private keys
     private_keys = {
@@ -103,10 +108,8 @@ def generate_keys():
     public_keys = {
         "public_identity_key": public_identity_key,
         "public_prekey" :public_prekey,
-        "sign_on_prekey" : sign_on_prekey,
         "public_one_time_prekeys" : public_one_time_prekeys,
         "public_last_resort_pqkem_key" : public_last_resort_pqkem_kyber_key,
-        "sign_on_last_resort_pqkem_key" : sign_on_last_resort_pqkem_key,
         "public_one_time_pqkem_prekeys" : public_one_time_pqkem_prekeys,
         "sign_on_one_time_pqkem_prekeys" : sign_on_one_time_pqkem_prekeys
     }
@@ -147,15 +150,14 @@ def fetch_key_bundle(username):
 
 def signature_check(key_bundle):
     try:
-        public_identity_key = Ed25519PublicKey.from_public_bytes(bytes(key_bundle["public_identity_key"]))
-        public_prekey = Ed25519PublicKey.from_public_bytes(bytes(key_bundle["public_prekey"]))
-        public_identity_key.verify(bytes(key_bundle["sign_on_prekey"]), public_prekey)
+        public_identity_key = public_deserialization(key_bundle["public_identity_key"])
+        public_identity_key.verify(bytes.fromhex(key_bundle["public_prekey"]["sign"]), bytes.fromhex(key_bundle["public_prekey"]["key"]))
 
         if(key_bundle["public_one_time_pqkem_prekey"] != None):
-            public_identity_key.verify(bytes(key_bundle["sign_on_one_time_pqkem_prekey"]),bytes(key_bundle["public_one_time_pqkem_prekey"]))
+            public_identity_key.verify(bytes.fromhex(key_bundle["public_one_time_pqkem_prekey"]["sign"]), bytes.fromhex(key_bundle["public_one_time_pqkem_prekey"]["key"]))
         
         else:
-            public_identity_key.verify(bytes(key_bundle["sign_on_last_resort_pqkem_key"]), bytes(key_bundle["public_last_resort_pqkem_key"]))
+            public_identity_key.verify(bytes.fromhex(key_bundle["public_one_time_pqkem_prekey"]["sign"]), bytes.fromhex(key_bundle["public_last_resort_pqkem_key"]["key"]))
         return True
     except InvalidSignature:
         return False
@@ -228,6 +230,7 @@ def main():
 
             if response.status_code == 200:
                 menu_user(username)
+        # TEST:
         elif choice == "3":
             user = input("Inserisci username: ")
             key_bundle = fetch_key_bundle(user)
