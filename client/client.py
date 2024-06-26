@@ -3,6 +3,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
+from cryptography.exceptions import InvalidSignature
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
@@ -144,10 +145,32 @@ def login(username,password):
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
     return response
+
+
 def fetch_key_bundle(username):
     url = f"{SERVER}/fetch_prekey_bundle/{username}"
     response = requests.get(url)
-    return response
+    return response.json()
+
+def signature_check(key_bundle):
+    try:
+        public_identity_key = Ed25519PublicKey.from_public_bytes(bytes(key_bundle["public_identity_key"]))
+        public_prekey = Ed25519PublicKey.from_public_bytes(bytes(key_bundle["public_prekey"]))
+        public_identity_key.verify(bytes(key_bundle["sign_on_prekey"]), public_prekey)
+
+        if(key_bundle["public_one_time_pqkem_prekey"] != None):
+            public_identity_key.verify(bytes(key_bundle["sign_on_one_time_pqkem_prekey"]),bytes(key_bundle["public_one_time_pqkem_prekey"]))
+        
+        else:
+            public_identity_key.verify(bytes(key_bundle["sign_on_last_resort_pqkem_key"]), bytes(key_bundle["public_last_resort_pqkem_key"]))
+        return True
+    except InvalidSignature:
+        return False
+        
+    
+
+
+
 
 def menu_user(username):
     print(f"Welcome {username}!")
@@ -211,7 +234,11 @@ def main():
 
             if response.status_code == 200:
                 menu_user(username)
-           
+        elif choice == "3":
+            user = input("Inserisci username: ")
+            key_bundle = fetch_key_bundle(user)
+            print(signature_check(key_bundle))
+
 
 
 if __name__ == "__main__":
