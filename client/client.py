@@ -8,6 +8,7 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
 from kyberpy import kyber
 import json
+import time
 
 #Server URL
 SERVER = "http://flask-server:5000"
@@ -56,9 +57,8 @@ def generate_keys():
     private_identity_key = Ed25519PrivateKey.generate()
     public_identity_key = private_identity_key.public_key()
     private_prekey = Ed25519PrivateKey.generate()
-    public_prekey = private_prekey.public_key()
-    # La firma deve essere fatta con la identity key? Si
-    sign_on_prekey = private_identity_key.sign(public_prekey.public_bytes(
+    public_prekey = {"key":private_prekey.public_key(), "id" :time.time_ns()}
+    sign_on_prekey = private_identity_key.sign(public_prekey["key"].public_bytes(
     encoding=serialization.Encoding.Raw,
     format=serialization.PublicFormat.Raw
     ))
@@ -66,11 +66,12 @@ def generate_keys():
     public_one_time_prekeys = list()
     for i in range(5):
         private_one_time_prekeys.append(Ed25519PrivateKey.generate())
-        public_one_time_prekeys.append(private_one_time_prekeys[i].public_key())
+        public_one_time_prekeys.append( {"key":private_one_time_prekeys[i].public_key(), "id":time.time_ns()})
 
     # Kyber keys:
     private_last_resort_pqkem_key , public_last_resort_pqkem_kyber_key = kyber.Kyber512.keygen()
-    sign_on_last_resort_pqkem_key = private_identity_key.sign(public_last_resort_pqkem_kyber_key)
+    public_last_resort_pqkem_kyber_key = {"key":public_last_resort_pqkem_kyber_key, "id":time.time_ns()}
+    sign_on_last_resort_pqkem_key = private_identity_key.sign(public_last_resort_pqkem_kyber_key["key"])
 
     private_one_time_pqkem_prekeys = list()
     public_one_time_pqkem_prekeys = list()
@@ -79,7 +80,7 @@ def generate_keys():
     for i in range(5):
         pqkem = kyber.Kyber512.keygen()
         private_one_time_pqkem_prekeys.append(pqkem[0])
-        public_one_time_pqkem_prekeys.append(pqkem[1])
+        public_one_time_pqkem_prekeys.append({"key":pqkem[1], "id":time.time_ns()})
         sign_on_one_time_pqkem_prekeys.append(private_identity_key.sign(pqkem[1]))
 
     # Json Data structure containing private keys
