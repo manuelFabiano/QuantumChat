@@ -178,8 +178,8 @@ def initialize_chat(username):
             pqkem = key_bundle["public_one_time_pqkem_prekey"]["key"]
         else:
             pqkem = key_bundle["public_last_resort_pqkem_key"]["key"]
-        ct, shared_secret = kyber.Kyber512.enc(pqkem)
-        
+        ct, shared_secret = kyber.Kyber512.enc(bytes.fromhex(pqkem))
+
 
         # Generate an ephemeral curve key 
         
