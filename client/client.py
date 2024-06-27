@@ -11,9 +11,16 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
 from kyberpy import kyber
 import json
 import time
-
+from pymongo import MongoClient
 #Server URL
 SERVER = "http://localhost:5001"
+
+# MongoDB connection
+mongo_host = os.getenv('MONGO_HOST', 'localhost')
+mongo_port = int(os.getenv('MONGO_PORT', '27018'))
+mongo_client = MongoClient(mongo_host, mongo_port)
+db = mongo_client.db
+keys_collection = db.keys
 
 
 
@@ -47,10 +54,13 @@ def read_keys():
           print(data["private_identity_key"])
 
 
-#save keys to json file
+#save keys to mongoDB
 def export_keys(data):
-    with open("keys.json","w") as file:
-        json.dump(data, file, cls=PrivateKeyEncoder, indent=4)
+    data = json.dumps(data, cls=PrivateKeyEncoder, indent=4)
+    data = json.loads(data)
+    keys_collection.insert_one({
+        "private_keys": data
+    })
 
 #Serialize public keys
 def public_serialization(key):
