@@ -5,6 +5,7 @@ WORKDIR /client
 COPY requirements.txt ../client/requirements.txt
 COPY client.py ../client/client.py
 COPY kyberpy ../client/kyberpy
+COPY gui.py ../client/gui.py
 
 RUN pip3 install --no-cache-dir -r requirements.txt
 

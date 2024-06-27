@@ -18,9 +18,9 @@ SERVER = "http://localhost:5001"
 
 
 # Define a custom encoder for serialization
-class Ed25519PrivateKeyEncoder(json.JSONEncoder):
+class PrivateKeyEncoder(json.JSONEncoder):
     def default(self, obj):
-        if isinstance(obj, Ed25519PrivateKey):
+        if isinstance(obj, Ed25519PrivateKey) or isinstance(obj, X25519PrivateKey):
             # Serialize private key to bytes in PKCS8 format
             pem_private_key = obj.private_bytes(
                 encoding=serialization.Encoding.PEM,
@@ -50,7 +50,7 @@ def read_keys():
 #save keys to json file
 def export_keys(data):
     with open("keys.json","w") as file:
-        json.dump(data, file, cls=Ed25519PrivateKeyEncoder, indent=4)
+        json.dump(data, file, cls=PrivateKeyEncoder, indent=4)
 
 #Serialize public keys
 def public_serialization(key):
@@ -58,9 +58,13 @@ def public_serialization(key):
     format=serialization.PublicFormat.Raw).hex()
 
 #Deserialize public keys
-def public_deserialization(hex_key):
+def public_EDdeserialization(hex_key):
     key_bytes = bytes.fromhex(hex_key)
     return Ed25519PublicKey.from_public_bytes(key_bytes)
+
+def public_Xdeserialization(hex_key):
+    key_bytes = bytes.fromhex(hex_key)
+    return X25519PublicKey.from_public_bytes(key_bytes)
 
 
 #generate public and private keys
@@ -70,14 +74,14 @@ def generate_keys():
     private_identity_key = Ed25519PrivateKey.generate()
     public_identity_key = public_serialization(private_identity_key.public_key())
     id = time.time_ns()
-    private_prekey = {"key": Ed25519PrivateKey.generate(), "id": id}
+    private_prekey = {"key": X25519PrivateKey.generate(), "id": id}
     public_prekey = {"key":public_serialization(private_prekey["key"].public_key()), "id" :id}
     public_prekey["sign"] = private_identity_key.sign(bytes.fromhex(public_prekey["key"])).hex()
     private_one_time_prekeys = list()
     public_one_time_prekeys = list()
     for i in range(5):
         id = time.time_ns()
-        private_one_time_prekeys.append({"key":Ed25519PrivateKey.generate(), "id": id})
+        private_one_time_prekeys.append({"key":X25519PrivateKey.generate(), "id": id})
         public_one_time_prekeys.append({"key":public_serialization(private_one_time_prekeys[i]["key"].public_key()), "id": id})
 
     # Kyber keys:
@@ -151,7 +155,7 @@ def fetch_key_bundle(username):
 
 def signature_check(key_bundle):
     try:
-        public_identity_key = public_deserialization(key_bundle["public_identity_key"])
+        public_identity_key = public_EDdeserialization(key_bundle["public_identity_key"])
         public_identity_key.verify(bytes.fromhex(key_bundle["public_prekey"]["sign"]), bytes.fromhex(key_bundle["public_prekey"]["key"]))
 
         if(key_bundle["public_one_time_pqkem_prekey"] != None):
@@ -180,6 +184,7 @@ def initialize_chat(username):
         else:
             pqkem = key_bundle["public_last_resort_pqkem_key"]["key"]
         ct, shared_secret = kyber.Kyber512.enc(pqkem)
+        
 
         # Generate an ephemeral curve key 
         ephemeral_key = X25519PrivateKey.generate()
