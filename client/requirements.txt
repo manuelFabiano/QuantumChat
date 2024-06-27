@@ -1,3 +1,4 @@
 requests
 cryptography
 pycryptodome
+PyQt5

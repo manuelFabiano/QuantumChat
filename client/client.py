@@ -12,7 +12,7 @@ import json
 import time
 
 #Server URL
-SERVER = "http://localhost:5001"
+SERVER = "http://flask-server:5000"
 
 
 
