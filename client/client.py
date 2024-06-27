@@ -1,6 +1,7 @@
 import requests
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.exceptions import InvalidSignature
@@ -12,7 +13,7 @@ import json
 import time
 
 #Server URL
-SERVER = "http://flask-server:5000"
+SERVER = "http://localhost:5001"
 
 
 
@@ -146,7 +147,7 @@ def login(username,password):
 def fetch_key_bundle(username):
     url = f"{SERVER}/fetch_prekey_bundle/{username}"
     response = requests.get(url)
-    return response.json()
+    return response
 
 def signature_check(key_bundle):
     try:
@@ -165,6 +166,11 @@ def signature_check(key_bundle):
     
 def initialize_chat(username):
     key_bundle = fetch_key_bundle(username)
+    if key_bundle.status_code != 200:
+        print("User not found")
+        return
+    key_bundle = key_bundle.json()
+
     if signature_check(key_bundle):
         print("Signature check passed")
         print("Starting chat...")
@@ -176,6 +182,8 @@ def initialize_chat(username):
         ct, shared_secret = kyber.Kyber512.enc(pqkem)
 
         # Generate an ephemeral curve key 
+        ephemeral_key = X25519PrivateKey.generate()
+        
         
     else:
         print("Signature check failed")
