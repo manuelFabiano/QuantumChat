@@ -151,7 +151,7 @@ def login(username,password):
 def fetch_key_bundle(username):
     url = f"{SERVER}/fetch_prekey_bundle/{username}"
     response = requests.get(url)
-    return response.json()
+    return response
 
 def signature_check(key_bundle):
     try:
@@ -170,6 +170,11 @@ def signature_check(key_bundle):
     
 def initialize_chat(username):
     key_bundle = fetch_key_bundle(username)
+    if key_bundle.status_code != 200:
+        print("User not found")
+        return
+    key_bundle = key_bundle.json()
+
     if signature_check(key_bundle):
         print("Signature check passed")
         print("Starting chat...")
@@ -182,6 +187,8 @@ def initialize_chat(username):
 
 
         # Generate an ephemeral curve key 
+        ephemeral_key = X25519PrivateKey.generate()
+        
         
     else:
         print("Signature check failed")
