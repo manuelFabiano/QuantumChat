@@ -100,7 +100,7 @@ def fetch_prekey_bundle(username):
         public_last_resort_pqkem_key = public_keys.get("public_last_resort_pqkem_key")
     
     # Get one time curve keys:
-    public_one_time_prekey_list = public_keys.get("public_one_time_pqkem_prekeys", [])
+    public_one_time_prekey_list = public_keys.get("public_one_time_prekeys", [])
     
     if len(public_one_time_prekey_list) > 0:
         public_one_time_prekey = public_one_time_prekey_list[0]

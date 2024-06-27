@@ -5,6 +5,9 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 from cryptography.exceptions import InvalidSignature
+from cryptography.exceptions import UnsupportedAlgorithm, _Reasons
+from cryptography.hazmat.backends.openssl.backend import backend
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
@@ -12,6 +15,8 @@ from kyberpy import kyber
 import json
 import time
 from pymongo import MongoClient
+from fe25519 import fe25519
+from ge25519 import ge25519, ge25519_p3
 
 
 
@@ -26,14 +31,8 @@ db = mongo_client.db
 keys_collection = db.keys
 
 
-# Method for X254519PrivateKey for converting from ed25519 to x25519
-@classmethod
-def from_ed25519_private_bytes(cls, data):
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.backends.openssl.backend import backend
-    from cryptography.exceptions import UnsupportedAlgorithm
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import _Reasons
-
+# DOVREBBERO FUNZIONARE
+def x25519_from_ed25519_private_bytes(private_bytes):
     if not backend.x25519_supported():
         raise UnsupportedAlgorithm(
             "X25519 is not supported by this version of OpenSSL.",
@@ -41,18 +40,50 @@ def from_ed25519_private_bytes(cls, data):
         )
 
     hasher = hashes.Hash(hashes.SHA512())
-    hasher.update(data)
+    hasher.update(private_bytes)
     h = bytearray(hasher.finalize())
     # curve25519 clamping
     h[0] &= 248
     h[31] &= 127
     h[31] |= 64
 
-    return backend.x25519_load_private_bytes(h[0:32])
+    return h[0:32]
 
-setattr(X25519PrivateKey, 'from_ed25519_private_bytes', from_ed25519_private_bytes)
+# The private key needs to be a bytes array
+def private_ed_to_x(private_key):
+    return X25519PrivateKey.from_private_bytes(x25519_from_ed25519_private_bytes(private_key))
 
+def x25519_from_ed25519_public_bytes(public_bytes) -> X25519PublicKey:
+    if not backend.x25519_supported():
+        raise UnsupportedAlgorithm(
+            "X25519 is not supported by this version of OpenSSL.",
+            _Reasons.UNSUPPORTED_EXCHANGE_ALGORITHM,
+        )
 
+    # This is libsodium's crypto_sign_ed25519_pk_to_curve25519 translated into
+    # the Pyton module ge25519.
+    if ge25519.has_small_order(public_bytes) != 0:
+        raise ValueError("Doesn't have small order")
+
+    # frombytes in libsodium appears to be the same as
+    # frombytes_negate_vartime; as ge25519 only implements the from_bytes
+    # version, we have to do the root check manually.
+    A = ge25519_p3.from_bytes(public_bytes)
+    if A.root_check:
+        raise ValueError("Root check failed")
+
+    if not A.is_on_main_subgroup():
+        raise ValueError("It's on the main subgroup")
+
+    one_minus_y = fe25519.one() - A.Y
+    x = A.Y + fe25519.one()
+    x = x * one_minus_y.invert()
+
+    return bytes(x.to_bytes())
+
+# The public key needs to be a bytes array
+def public_ed_to_x(public_key):
+    return X25519PublicKey.from_public_bytes(x25519_from_ed25519_public_bytes(public_key))
 
 # Define a custom encoder for serialization
 class PrivateKeyEncoder(json.JSONEncoder):
@@ -113,8 +144,6 @@ def generate_keys():
     # Curve keys
     private_identity_key_Ed = Ed25519PrivateKey.generate()
     public_identity_key_Ed = public_serialization(private_identity_key_Ed.public_key())
-    private_identity_key_X = X25519PrivateKey.from_ed25519_private_bytes(private_identity_key_Ed)
-    public_identity_key_X = private_identity_key_X.public_key()
     id = time.time_ns()
     private_prekey = {"key": X25519PrivateKey.generate(), "id": id}
     public_prekey = {"key":public_serialization(private_prekey["key"].public_key()), "id" :id}
@@ -208,7 +237,18 @@ def signature_check(key_bundle):
         return True
     except InvalidSignature:
         return False
-        
+
+def X3DH_KDF(DHs):
+    KDF_F = b'\xff' * 32
+    km = KDF_F + DHs
+    salt = b'\x00' * 32
+    hkdf = HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        info=b'QuantumChat_CURVE25519_SHA-256_CRYSTALS-KYBER-512',
+    )
+    return hkdf.derive(km)
     
 def initialize_chat(username):
     key_bundle = fetch_key_bundle(username)
@@ -222,21 +262,49 @@ def initialize_chat(username):
         print("Starting chat...")
         # Generate a pqkem encapsulated shared secret
         if key_bundle["public_one_time_pqkem_prekey"] != None:
-            pqkem = key_bundle["public_one_time_pqkem_prekey"]["key"]
+            pqkem = key_bundle["public_one_time_pqkem_prekey"]
         else:
-            pqkem = key_bundle["public_last_resort_pqkem_key"]["key"]
-        ct, shared_secret = kyber.Kyber512.enc(bytes.fromhex(pqkem))
+            pqkem = key_bundle["public_last_resort_pqkem_key"]
+        ct, shared_secret = kyber.Kyber512.enc(bytes.fromhex(pqkem["key"]))
 
         # Generate an ephemeral curve key 
         ephemeral_key = X25519PrivateKey.generate()
-        public_ephemeral_key = ephemeral_key.public_key()
+        public_ephemeral_key = public_serialization(ephemeral_key.public_key())
 
-        # Ipotizzando di poter deserializzare la chiave privata
-        private_identity_key = db.find_one({"username": username})
+        # Fetch private identity key from local database --> FORSE E' DA CAMBIARE
+        private_identity_key = keys_collection.find_one()["private_keys"]["private_identity_key"]
+
         # Convert identity key to X25519
-        private_identity_key = X25519PrivateKey.from_ed25519_key(private_identity_key)
-        DH1 = private_identity_key.exchange(public_Xdeserialization(key_bundle["public_prekey"]["key"]))
-        DH2 = ephemeral_key.exchange(public_Xdeserialization(key_bundle[""]["key"]))
+        private_identity_key_X = private_ed_to_x(bytes.fromhex(private_identity_key))
+        # DH1(IKa, SPKb)
+        DH1 = private_identity_key_X.exchange(public_Xdeserialization(key_bundle["public_prekey"]["key"]))
+        # DH2(EKa, IKb)
+        DH2 = ephemeral_key.exchange(public_ed_to_x(bytes.fromhex(key_bundle["public_identity_key"])))
+        # DH3(EKa, SPKb)
+        DH3 = ephemeral_key.exchange(public_Xdeserialization(key_bundle["public_prekey"]["key"]))
+        if key_bundle["public_one_time_prekey"] != None:
+            # DH4(EKa, OPKb)
+            curve_one_time = key_bundle["public_one_time_prekey"]
+            curve_one_time_id = curve_one_time["id"]
+            DH4 = ephemeral_key.exchange(public_Xdeserialization(curve_one_time["key"]))
+            SK = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + shared_secret)
+        else:
+            SK = X3DH_KDF(DH1 + DH2 + DH3 + shared_secret)
+        
+        # Two identity keys as bytes strings
+        public_identity_key_user = bytes.fromhex(public_serialization(private_identity_key_X.public_key()))
+        public_identity_key_other_user = bytes.fromhex(public_serialization(public_ed_to_x(bytes.fromhex(key_bundle["public_identity_key"]))))
+        AD = (public_identity_key_user + public_identity_key_other_user)
+
+        # Manca il messaggio iniziale criptato con uno schema AEAD 
+        initial_message = {
+            "identity_key" : public_identity_key_user.hex(),
+            "ephemeral_key" : public_ephemeral_key,
+            "cipher_text" : ct.hex(),
+            "public_prekey_id" : key_bundle["public_prekey"]["id"],
+            "pqkem_id" : pqkem["id"],
+            "curve_one_time_id" : curve_one_time_id,
+        }
         
         
     else:
@@ -264,7 +332,7 @@ def menu_user(username):
         choice = input("Enter your choice: ")
         if choice == "1":
             print("Starting chat...")
-            initialize_chat(username)
+            sk = initialize_chat(username)
         
 
 

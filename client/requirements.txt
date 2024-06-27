@@ -3,3 +3,5 @@ cryptography
 pycryptodome
 PyQt5
 pymongo
+ge25519
+fe25519
