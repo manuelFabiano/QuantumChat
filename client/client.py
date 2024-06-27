@@ -16,6 +16,33 @@ import time
 SERVER = "http://localhost:5001"
 
 
+# Method for X254519PrivateKey for converting from ed25519 to x25519
+@classmethod
+def from_ed25519_private_bytes(cls, data):
+    from cryptography.hazmat.primitives import hashes
+    from cryptography.hazmat.backends.openssl.backend import backend
+    from cryptography.exceptions import UnsupportedAlgorithm
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import _Reasons
+
+    if not backend.x25519_supported():
+        raise UnsupportedAlgorithm(
+            "X25519 is not supported by this version of OpenSSL.",
+            _Reasons.UNSUPPORTED_EXCHANGE_ALGORITHM,
+        )
+
+    hasher = hashes.Hash(hashes.SHA512())
+    hasher.update(data)
+    h = bytearray(hasher.finalize())
+    # curve25519 clamping
+    h[0] &= 248
+    h[31] &= 127
+    h[31] |= 64
+
+    return backend.x25519_load_private_bytes(h[0:32])
+
+setattr(X25519PrivateKey, 'from_ed25519_private_bytes', from_ed25519_private_bytes)
+
+
 
 # Define a custom encoder for serialization
 class PrivateKeyEncoder(json.JSONEncoder):
@@ -185,9 +212,16 @@ def initialize_chat(username):
             pqkem = key_bundle["public_last_resort_pqkem_key"]["key"]
         ct, shared_secret = kyber.Kyber512.enc(bytes.fromhex(pqkem))
 
-
         # Generate an ephemeral curve key 
         ephemeral_key = X25519PrivateKey.generate()
+        public_ephemeral_key = ephemeral_key.public_key()
+
+        # Ipotizzando di poter deserializzare la chiave privata
+        private_identity_key = db.find_one({"username": username})
+        # Convert identity key to X25519
+        private_identity_key = X25519PrivateKey.from_ed25519_key(private_identity_key)
+        DH1 = private_identity_key.exchange(public_Xdeserialization(key_bundle["public_prekey"]["key"]))
+        DH2 = ephemeral_key.exchange(public_Xdeserialization(key_bundle[""]["key"]))
         
         
     else:
