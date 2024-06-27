@@ -12,7 +12,7 @@ import json
 import time
 
 #Server URL
-SERVER = "http://flask-server:5000"
+SERVER = "http://localhost:5001"
 
 
 
@@ -163,8 +163,24 @@ def signature_check(key_bundle):
         return False
         
     
+def initialize_chat(username):
+    key_bundle = fetch_key_bundle(username)
+    if signature_check(key_bundle):
+        print("Signature check passed")
+        print("Starting chat...")
+        # Generate a pqkem encapsulated shared secret
+        if key_bundle["public_one_time_pqkem_prekey"] != None:
+            pqkem = key_bundle["public_one_time_pqkem_prekey"]["key"]
+        else:
+            pqkem = key_bundle["public_last_resort_pqkem_key"]["key"]
+        ct, shared_secret = kyber.Kyber512.enc(pqkem)
 
-
+        # Generate an ephemeral curve key 
+        
+    else:
+        print("Signature check failed")
+        print("Aborting chat...")
+        return
 
 
 def menu_user(username):
@@ -177,7 +193,16 @@ def menu_user(username):
     if choice == "0":
         return
     if choice == "1":
-        print("Chats")
+        print("Chats\n")
+        input("Type the username you want to chat with:")
+        # Controllare se esiste già una chat con quell'utente
+        # Altrimenti:
+        print("1. Start chat")
+        print("2. Back")
+        choice = input("Enter your choice: ")
+        if choice == "1":
+            print("Starting chat...")
+            initialize_chat(username)
         
 
 
@@ -230,11 +255,6 @@ def main():
 
             if response.status_code == 200:
                 menu_user(username)
-        # TEST:
-        elif choice == "3":
-            user = input("Inserisci username: ")
-            key_bundle = fetch_key_bundle(user)
-            print(signature_check(key_bundle))
 
 
 
