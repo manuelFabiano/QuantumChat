@@ -111,12 +111,14 @@ def public_Xdeserialization(hex_key):
 def generate_keys():
     # Mancano identificatori per le chiavi!!! Mi scuddai
     # Curve keys
-    private_identity_key = Ed25519PrivateKey.generate()
-    public_identity_key = public_serialization(private_identity_key.public_key())
+    private_identity_key_Ed = Ed25519PrivateKey.generate()
+    public_identity_key_Ed = public_serialization(private_identity_key_Ed.public_key())
+    private_identity_key_X = X25519PrivateKey.from_ed25519_private_bytes(private_identity_key_Ed)
+    public_identity_key_X = private_identity_key_X.public_key()
     id = time.time_ns()
     private_prekey = {"key": X25519PrivateKey.generate(), "id": id}
     public_prekey = {"key":public_serialization(private_prekey["key"].public_key()), "id" :id}
-    public_prekey["sign"] = private_identity_key.sign(bytes.fromhex(public_prekey["key"])).hex()
+    public_prekey["sign"] = private_identity_key_Ed.sign(bytes.fromhex(public_prekey["key"])).hex()
     private_one_time_prekeys = list()
     public_one_time_prekeys = list()
     for i in range(5):
@@ -129,7 +131,7 @@ def generate_keys():
     private_last_resort_pqkem_key , public_last_resort_pqkem_kyber_key = kyber.Kyber512.keygen()
     private_last_resort_pqkem_key = {"key": private_last_resort_pqkem_key.hex(), "id": id}
     public_last_resort_pqkem_kyber_key = {"key":public_last_resort_pqkem_kyber_key.hex(), "id":id}
-    public_last_resort_pqkem_kyber_key["sign"] = private_identity_key.sign(bytes.fromhex(public_last_resort_pqkem_kyber_key["key"])).hex()
+    public_last_resort_pqkem_kyber_key["sign"] = private_identity_key_Ed.sign(bytes.fromhex(public_last_resort_pqkem_kyber_key["key"])).hex()
 
     private_one_time_pqkem_prekeys = list()
     public_one_time_pqkem_prekeys = list()
@@ -139,11 +141,11 @@ def generate_keys():
         id = time.time_ns()
         pqkem = kyber.Kyber512.keygen()
         private_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id})
-        public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id, "sign":private_identity_key.sign(pqkem[1]).hex()})
+        public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id, "sign":private_identity_key_Ed.sign(pqkem[1]).hex()})
 
     # Json Data structure containing private keys
     private_keys = {
-        "private_identity_key": private_identity_key,
+        "private_identity_key": private_identity_key_Ed,
         "private_prekey": private_prekey,
         "private_one_time_prekeys" : private_one_time_prekeys,
         "private_last_resort_pqkem_key" : private_last_resort_pqkem_key,
@@ -151,7 +153,7 @@ def generate_keys():
     }
 
     public_keys = {
-        "public_identity_key": public_identity_key,
+        "public_identity_key": public_identity_key_Ed,
         "public_prekey" :public_prekey,
         "public_one_time_prekeys" : public_one_time_prekeys,
         "public_last_resort_pqkem_key" : public_last_resort_pqkem_kyber_key,
