@@ -117,10 +117,11 @@ def read_keys():
 
 
 #save keys to mongoDB
-def export_keys(data):
+def export_keys(username,data):
     data = json.dumps(data, cls=PrivateKeyEncoder, indent=4)
     data = json.loads(data)
     keys_collection.insert_one({
+        "username" : username,
         "private_keys": data
     })
 
@@ -140,7 +141,7 @@ def public_Xdeserialization(hex_key):
 
 
 #generate public and private keys
-def generate_keys(username):
+def generate_keys():
     # Mancano identificatori per le chiavi!!! Mi scuddai
     # Curve keys
     private_identity_key_Ed = Ed25519PrivateKey.generate()
@@ -175,7 +176,6 @@ def generate_keys(username):
 
     # Json Data structure containing private keys and user informations
     private_keys = {
-        "username" : username,
         "private_identity_key": private_identity_key_Ed,
         "private_prekey": private_prekey,
         "private_one_time_prekeys" : private_one_time_prekeys,
@@ -273,7 +273,7 @@ def initialize_chat(username,destination):
         public_ephemeral_key = public_serialization(ephemeral_key.public_key())
 
         # Fetch private identity key from local database --> FORSE E' DA CAMBIARE
-        private_identity_key = keys_collection.find_one({"private_keys.username": username})["private_keys"]["private_identity_key"]
+        private_identity_key = keys_collection.find_one({"username": username})["private_keys"]["private_identity_key"]
 
         # Convert identity key to X25519
         private_identity_key_X = private_ed_to_x(bytes.fromhex(private_identity_key))
@@ -316,6 +316,7 @@ def initialize_chat(username,destination):
         
         # Send initial message to the other user
         payload = {
+            "type" : "INIT",
             "sender": username,
             "receiver": destination,
             "message": initial_message
@@ -330,12 +331,12 @@ def initialize_chat(username,destination):
             return
         
         # Save secret key and associated data in the local database
-        keys_collection.collection.update_one(
+        keys_collection.update_one(
         {'username': username},
         {'$set': {f"{destination}": {
             "SK" : sk.hex(),
             "AD" : ad.hex()
-        }}}  # Create a field for the destionation of chat containing SK and AD
+        }}}  # Create a field for the receiver of chat containing SK and AD
         )
     else:
         print("Signature check failed")
@@ -408,7 +409,7 @@ def main():
             digest.update(password.encode())
             password = digest.finalize()
             password = password.hex()
-            keys = generate_keys(username)
+            keys = generate_keys()
 
             #Register the user on server with his private keys
             response = register(username, password, keys[1])
@@ -416,7 +417,7 @@ def main():
             #if the user has been correctly registered, save 
             # private keys locally and go to menu
             if response.status_code == 200:
-                export_keys(keys[0])
+                export_keys(username,keys[0])
                 menu_user(username)  
             else:
                 print(response.text)

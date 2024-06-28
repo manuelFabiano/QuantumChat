@@ -128,12 +128,15 @@ def send_message():
     data = request.get_json()
     print(data)
     try:
+        type =  data["type"]
         sender = data["sender"]
         receiver = data["receiver"]
         message = data["message"]
 
         #Save message on MongoDB
         chats_collection.insert_one({
+            "type" : type,
+            "received" : 0,
             "sender": sender,
             "receiver": receiver,
             "message": message,
