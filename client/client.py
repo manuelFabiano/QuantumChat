@@ -291,6 +291,7 @@ def initialize_chat(username):
         else:
             SK = X3DH_KDF(DH1 + DH2 + DH3 + shared_secret)
         
+
         # Two identity keys as bytes strings
         public_identity_key_user = bytes.fromhex(public_serialization(private_identity_key_X.public_key()))
         public_identity_key_other_user = bytes.fromhex(public_serialization(public_ed_to_x(bytes.fromhex(key_bundle["public_identity_key"]))))
@@ -305,7 +306,7 @@ def initialize_chat(username):
             "pqkem_id" : pqkem["id"],
             "curve_one_time_id" : curve_one_time_id,
         }
-        
+        # Alice deve salvare: secret_key, AD.
         
     else:
         print("Signature check failed")
