@@ -139,7 +139,7 @@ def public_Xdeserialization(hex_key):
 
 
 #generate public and private keys
-def generate_keys():
+def generate_keys(username):
     # Mancano identificatori per le chiavi!!! Mi scuddai
     # Curve keys
     private_identity_key_Ed = Ed25519PrivateKey.generate()
@@ -172,8 +172,9 @@ def generate_keys():
         private_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id})
         public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id, "sign":private_identity_key_Ed.sign(pqkem[1]).hex()})
 
-    # Json Data structure containing private keys
+    # Json Data structure containing private keys and user informations
     private_keys = {
+        "username" : username,
         "private_identity_key": private_identity_key_Ed,
         "private_prekey": private_prekey,
         "private_one_time_prekeys" : private_one_time_prekeys,
@@ -190,8 +191,7 @@ def generate_keys():
         "sign_on_one_time_pqkem_prekeys" : sign_on_one_time_pqkem_prekeys
     }
 
-    export_keys(private_keys)
-    return public_keys
+    return (private_keys,public_keys)
     
 
 
@@ -212,7 +212,7 @@ def login(username,password):
     url = SERVER + "/login"
     payload = {
         "username": username,
-        "password": str(password),
+        "password": password,
      }
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
@@ -250,8 +250,8 @@ def X3DH_KDF(DHs):
     )
     return hkdf.derive(km)
     
-def initialize_chat(username):
-    key_bundle = fetch_key_bundle(username)
+def initialize_chat(username,destination):
+    key_bundle = fetch_key_bundle(destination)
     if key_bundle.status_code != 200:
         print("User not found")
         return
@@ -307,7 +307,13 @@ def initialize_chat(username):
             "curve_one_time_id" : curve_one_time_id,
         }
         # Alice deve salvare: secret_key, AD.
-        
+        keys_collection.collection.update_one(
+        {'username': username},
+        {'$set': {f"{destination}": {
+            "SS" : SS,
+            "AD" : AD
+        }}}  # Create a field for the destionation of chat containing SS and AD
+)
     else:
         print("Signature check failed")
         print("Aborting chat...")
@@ -325,7 +331,7 @@ def menu_user(username):
         return
     if choice == "1":
         print("Chats\n")
-        input("Type the username you want to chat with:")
+        destination = input("Type the username you want to chat with:")
         # Controllare se esiste già una chat con quell'utente
         # Altrimenti:
         print("1. Start chat")
@@ -333,7 +339,7 @@ def menu_user(username):
         choice = input("Enter your choice: ")
         if choice == "1":
             print("Starting chat...")
-            sk = initialize_chat(username)
+            sk = initialize_chat(username,destination)
         
 
 
@@ -379,13 +385,19 @@ def main():
             digest.update(password.encode())
             password = digest.finalize()
             password = password.hex()
-            public_keys = generate_keys()
+            keys = generate_keys(username)
 
-            #Register the user
-            response = register(username, password, public_keys)
+            #Register the user on server with his private keys
+            response = register(username, password, keys[1])
 
+            #if the user has been correctly registered, save 
+            # private keys locally and go to menu
             if response.status_code == 200:
-                menu_user(username)
+                export_keys(keys[0])
+                menu_user(username)  
+            else:
+                print(response.text)
+
 
 
 
