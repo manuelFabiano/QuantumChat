@@ -90,10 +90,9 @@ def public_ed_to_x(public_key):
 class PrivateKeyEncoder(json.JSONEncoder):
     def default(self, obj):
         if isinstance(obj, Ed25519PrivateKey) or isinstance(obj, X25519PrivateKey):
-            # Serialize private key to bytes in PKCS8 format
             pem_private_key = obj.private_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PrivateFormat.PKCS8,
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
                 encryption_algorithm=serialization.NoEncryption()
             )
             # Convert bytes to hex string and return
@@ -101,14 +100,17 @@ class PrivateKeyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 # Custom decoder to deserialize JSON string to Ed25519PrivateKey
-'''DA SISTEMARE'''
 def ed25519_private_key_decoder(data):
-    if '__Ed25519PrivateKey__' in data:
-        private_key_bytes = data['__Ed25519PrivateKey__'].encode('utf-8')
-        # Deserialize private key from bytes
-        return serialization.load_pem_private_key(private_key_bytes, password=None)
-    return data
+    private_key_bytes = bytes.fromhex(data)
+    # Deserialize private key from bytes
+    return ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
 
+
+def X25519_private_key_decoder(data):
+    private_key_bytes = bytes.fromhex(data)
+    # Deserialize private key from bytes
+    return X25519PrivateKey.from_private_bytes(private_key_bytes)
+    
 #read from json file
 def read_keys():
       with open("keys.json","r") as file:
@@ -251,7 +253,7 @@ def X3DH_KDF(DHs):
     )
     return hkdf.derive(km)
     
-def initialize_chat(username,destination):
+def send_initial_message(username,destination):
     key_bundle = fetch_key_bundle(destination)
     if key_bundle.status_code != 200:
         print("User not found")
@@ -291,6 +293,7 @@ def initialize_chat(username,destination):
             sk = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + shared_secret)
         else:
             sk = X3DH_KDF(DH1 + DH2 + DH3 + shared_secret)
+            curve_one_time_id = None
         
 
         # Two identity keys as bytes strings
@@ -344,6 +347,39 @@ def initialize_chat(username,destination):
         return
 
 
+
+
+
+def handle_initial_message(msg):
+    identity_key = msg["message"]["identity_key"]
+    ephemeral_key = msg["message"]["ephemeral_key"]
+    local_keys = keys_collection.findOne({"username":msg["receiver"]})["private_keys"]
+    private_key = ed25519_private_key_decoder(local_keys["private_identity_key"])
+    ##Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
+    spk = X25519_private_key_decoder(local_keys["private_prekey"])  #Ce n'è solo una, quindi è inutile che vado a cercarla
+    if msg["message"]["curve_one_time_id"] != None:
+      for key in local_keys["private_one_time_prekeys"]:
+          if key["id"] == msg["message"]["curve_one_time_id"]:
+              opk = X25519_private_key_decoder(key["key"])
+              break
+
+    if local_keys["private_last_resort_pqkem_key"]["id"] == msg["message"]["pqkem_id"]:
+        pqpk = bytes.fromhex(local_keys["private_last_resort_pqkem_key"]["key"])
+    else:
+        for key in local_keys["private_one_time_pqkem_prekeys"]:
+          if key["id"] == msg["message"]["pqkem_id"]:
+              pqpk = bytes.fromhex(key["key"])
+              break
+    
+    SS = kyber.Kyber512.dec(msg["message"]["cipher_text"], pqpk)
+    # DH1(SPKb,IKa)
+    DH1 = spk.exchange(msg["message"]["identity_key"])
+    # DH2(IKb,EKa)
+    DH2 = ephemeral_key.exchange(public_ed_to_x(bytes.fromhex(key_bundle["public_identity_key"])))
+    # DH3(EKa, SPKb)
+    DH3 = ephemeral_key.exchange(public_Xdeserialization(key_bundle["public_prekey"]["key"]))
+
+
 def menu_user(username):
     print(f"Welcome {username}!")
     print("Main menu\n")
@@ -363,7 +399,7 @@ def menu_user(username):
         choice = input("Enter your choice: ")
         if choice == "1":
             print("Starting chat...")
-            sk = initialize_chat(username,destination)
+            sk = send_initial_message(username,destination)
         
 
 
