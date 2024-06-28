@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 from pymongo import MongoClient
 import binascii
 import os
+import time
 
 app = Flask(__name__)
 
@@ -11,6 +12,7 @@ mongo_port = int(os.getenv('MONGO_PORT', '27017'))
 mongo_client = MongoClient(mongo_host, mongo_port)
 db = mongo_client.db
 keys_collection = db.keys
+chats_collection = db.chats
 
 
 @app.route('/login',methods=['POST'])
@@ -121,6 +123,28 @@ def fetch_prekey_bundle(username):
     } 
     return jsonify(prekey_bundle), 200
 
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.get_json()
+    print(data)
+    try:
+        sender = data["sender"]
+        receiver = data["receiver"]
+        message = data["message"]
+
+        #Save message on MongoDB
+        chats_collection.insert_one({
+            "sender": sender,
+            "receiver": receiver,
+            "message": message,
+            "timestamp": time.time()
+        })
+        # Da aggiungere la verifica che il receiver sia registrato
+
+        return jsonify({'message': 'Message sent successfully!'}), 200
+
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
 if __name__ == '__main__':
     print('Server running on port 5000')

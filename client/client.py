@@ -8,6 +8,7 @@ from cryptography.exceptions import InvalidSignature
 from cryptography.exceptions import UnsupportedAlgorithm, _Reasons
 from cryptography.hazmat.backends.openssl.backend import backend
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
@@ -272,7 +273,7 @@ def initialize_chat(username,destination):
         public_ephemeral_key = public_serialization(ephemeral_key.public_key())
 
         # Fetch private identity key from local database --> FORSE E' DA CAMBIARE
-        private_identity_key = keys_collection.find_one()["private_keys"]["private_identity_key"]
+        private_identity_key = keys_collection.find_one({"private_keys.username": username})["private_keys"]["private_identity_key"]
 
         # Convert identity key to X25519
         private_identity_key_X = private_ed_to_x(bytes.fromhex(private_identity_key))
@@ -287,33 +288,55 @@ def initialize_chat(username,destination):
             curve_one_time = key_bundle["public_one_time_prekey"]
             curve_one_time_id = curve_one_time["id"]
             DH4 = ephemeral_key.exchange(public_Xdeserialization(curve_one_time["key"]))
-            SK = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + shared_secret)
+            sk = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + shared_secret)
         else:
-            SK = X3DH_KDF(DH1 + DH2 + DH3 + shared_secret)
+            sk = X3DH_KDF(DH1 + DH2 + DH3 + shared_secret)
         
 
         # Two identity keys as bytes strings
         public_identity_key_user = bytes.fromhex(public_serialization(private_identity_key_X.public_key()))
         public_identity_key_other_user = bytes.fromhex(public_serialization(public_ed_to_x(bytes.fromhex(key_bundle["public_identity_key"]))))
-        AD = (public_identity_key_user + public_identity_key_other_user)
+        # Associated data:
+        ad = (public_identity_key_user + public_identity_key_other_user)
 
-        # Manca il messaggio iniziale criptato con uno schema AEAD 
+        initial_message_plaintext = b"**INITIAL MESSAGE**"
+        aesgcm = AESGCM(sk)
+        nonce = b'\x00' * 12
+        initial_message_ciphertext = (aesgcm.encrypt(nonce, initial_message_plaintext, ad)).hex()
+        
         initial_message = {
             "identity_key" : public_identity_key_user.hex(),
-            "ephemeral_key" : public_ephemeral_key,
+            "ephemeral_key" : public_ephemeral_key, # Already in hex
             "cipher_text" : ct.hex(),
             "public_prekey_id" : key_bundle["public_prekey"]["id"],
             "pqkem_id" : pqkem["id"],
             "curve_one_time_id" : curve_one_time_id,
+            "initial_message": initial_message_ciphertext # Already in hex
         }
-        # Alice deve salvare: secret_key, AD.
+        
+        # Send initial message to the other user
+        payload = {
+            "sender": username,
+            "receiver": destination,
+            "message": initial_message
+        }
+
+        payload = json.dumps(payload, indent=4)
+        url = SERVER + "/send_message"
+        response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+        if response.status_code != 200:
+            print("Error in sending message")
+            print(response.text)
+            return
+        
+        # Save secret key and associated data in the local database
         keys_collection.collection.update_one(
         {'username': username},
         {'$set': {f"{destination}": {
-            "SS" : SS,
-            "AD" : AD
-        }}}  # Create a field for the destionation of chat containing SS and AD
-)
+            "SK" : sk.hex(),
+            "AD" : ad.hex()
+        }}}  # Create a field for the destionation of chat containing SK and AD
+        )
     else:
         print("Signature check failed")
         print("Aborting chat...")
