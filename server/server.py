@@ -144,7 +144,42 @@ def send_message():
         })
         # Da aggiungere la verifica che il receiver sia registrato
 
+        # Add +1 to the number of pending messages of the receiver
+        user = keys_collection.find_one({"username": receiver})
+        if user:
+            # Get the number of pending messages, if it doesn't exist set it to 0
+            pending_messages = user.get("pending_messages", 0)
+            keys_collection.update_one(
+                {"username": receiver},
+                {"$set": {"pending_messages": pending_messages + 1}}
+            )
+        else:
+            return jsonify({'error': 'Receiver not found!'}), 400
+    
+
         return jsonify({'message': 'Message sent successfully!'}), 200
+
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
+
+# Function that fetch the messages from user "sender" to user "receiver"
+@app.route('/receive_messages', methods=['POST'])
+def receive_messages():
+    data = request.get_json()
+    try:
+        receiver = data["receiver"]
+        sender = data["sender"]
+
+        messages = list(chats_collection.find({"receiver": receiver, "sender": sender , "received": 0}))
+        for message in messages:
+            message["received"] = 1
+            chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
+            if "_id" in message:
+                del message["_id"]
+        payload = {
+            "messages": messages
+        }
+        return jsonify(payload), 200
 
     except KeyError as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400

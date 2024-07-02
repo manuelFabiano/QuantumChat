@@ -398,6 +398,7 @@ def menu_user(username):
     print("1. Chats")
     print("2. Groups")
     print("0. Back")
+
     choice = input("Enter your choice: ")
     if choice == "0":
         return
@@ -413,8 +414,6 @@ def menu_user(username):
             print("Starting chat...")
             sk = send_initial_message(username,destination)
         
-
-
 def main():
     while 1:
     
