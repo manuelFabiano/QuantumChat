@@ -161,7 +161,7 @@ def generate_keys():
 
     # Kyber keys:
     id = time.time_ns()
-    private_last_resort_pqkem_key , public_last_resort_pqkem_kyber_key = kyber.Kyber512.keygen()
+    public_last_resort_pqkem_kyber_key, private_last_resort_pqkem_key = kyber.Kyber512.keygen()
     private_last_resort_pqkem_key = {"key": private_last_resort_pqkem_key.hex(), "id": id}
     public_last_resort_pqkem_kyber_key = {"key":public_last_resort_pqkem_kyber_key.hex(), "id":id}
     public_last_resort_pqkem_kyber_key["sign"] = private_identity_key_Ed.sign(bytes.fromhex(public_last_resort_pqkem_kyber_key["key"])).hex()
@@ -173,8 +173,9 @@ def generate_keys():
     for i in range(5):
         id = time.time_ns()
         pqkem = kyber.Kyber512.keygen()
-        private_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id})
-        public_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id, "sign":private_identity_key_Ed.sign(pqkem[1]).hex()})
+        public_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id, "sign":private_identity_key_Ed.sign(pqkem[0]).hex()})
+        private_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id})
+        
 
     # Json Data structure containing private keys and user informations
     private_keys = {
@@ -353,9 +354,9 @@ def send_initial_message(username,destination):
 def handle_initial_message(msg):
     identity_key = msg["message"]["identity_key"]
     ephemeral_key = msg["message"]["ephemeral_key"]
-    local_keys = keys_collection.findOne({"username":msg["receiver"]})["private_keys"]
+    local_keys = keys_collection.findOne({"username": msg["receiver"]})["private_keys"]
     private_key = ed25519_private_key_decoder(local_keys["private_identity_key"])
-    ##Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
+    # Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
     spk = X25519_private_key_decoder(local_keys["private_prekey"])  #Ce n'è solo una, quindi è inutile che vado a cercarla
     if msg["message"]["curve_one_time_id"] != None:
       for key in local_keys["private_one_time_prekeys"]:
@@ -464,6 +465,7 @@ if __name__ == "__main__":
     main()
 
 '''
+# PK = public key, SK = secret key
 pk, sk = kyber.Kyber512.keygen()
 c, key = kyber.Kyber512.enc(pk)
 _key = kyber.Kyber512.dec(c, sk)
