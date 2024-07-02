@@ -387,7 +387,10 @@ def handle_initial_message(msg):
     #TODO: deletes the DH values and SS values.
     # Associated data:
     ad = (public_serialization(public_identity_key) + public_serialization(private_key_X.public_key()))
-
+    aesgcm = AESGCM(sk)
+    nonce = b'\x00' * 12
+    encrypted_text = bytes.fromhex(msg["message"]["initial_message"])
+    decrypted_initial_message = aesgcm.decrypt(nonce, encrypted_text,ad)
 
 
 
