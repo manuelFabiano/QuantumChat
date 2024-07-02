@@ -351,10 +351,13 @@ def send_initial_message(username,destination):
 
 
 def handle_initial_message(msg):
-    identity_key = msg["message"]["identity_key"]
-    ephemeral_key = msg["message"]["ephemeral_key"]
+    #public_key_X
+    public_identity_key = public_Xdeserialization(msg["message"]["identity_key"]) 
+    #ephemeral_key_X
+    ephemeral_key = public_Xdeserialization(msg["message"]["ephemeral_key"])
     local_keys = keys_collection.findOne({"username":msg["receiver"]})["private_keys"]
-    private_key = ed25519_private_key_decoder(local_keys["private_identity_key"])
+    #private_key_X
+    private_key_X = private_ed_to_x(bytes.fromhex(local_keys["private_identity_key"]))
     ##Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
     spk = X25519_private_key_decoder(local_keys["private_prekey"])  #Ce n'è solo una, quindi è inutile che vado a cercarla
     if msg["message"]["curve_one_time_id"] != None:
@@ -364,20 +367,29 @@ def handle_initial_message(msg):
               break
 
     if local_keys["private_last_resort_pqkem_key"]["id"] == msg["message"]["pqkem_id"]:
-        pqpk = bytes.fromhex(local_keys["private_last_resort_pqkem_key"]["key"])
+        pqpk = X25519_private_key_decoder(bytes.fromhex(local_keys["private_last_resort_pqkem_key"]["key"]))
     else:
         for key in local_keys["private_one_time_pqkem_prekeys"]:
           if key["id"] == msg["message"]["pqkem_id"]:
-              pqpk = bytes.fromhex(key["key"])
+              pqpk = X25519_private_key_decoder(bytes.fromhex(key["key"]))
               break
     
     SS = kyber.Kyber512.dec(msg["message"]["cipher_text"], pqpk)
     # DH1(SPKb,IKa)
-    DH1 = spk.exchange(msg["message"]["identity_key"])
+    DH1 = spk.exchange(public_identity_key)
     # DH2(IKb,EKa)
-    DH2 = ephemeral_key.exchange(public_ed_to_x(bytes.fromhex(key_bundle["public_identity_key"])))
-    # DH3(EKa, SPKb)
-    DH3 = ephemeral_key.exchange(public_Xdeserialization(key_bundle["public_prekey"]["key"]))
+    DH2 = private_key_X.exchange(ephemeral_key)
+    # DH3(SPKb,EKa)
+    DH3 = spk.exchange(bytes.fromhex(msg["message"]["ephemeral_key"]))
+    # DH4(OPKb,EKa)
+    DH4 = pqpk.exchange(public_Xdeserialization(msg["message"]["ephemeral_key"]))
+    sk = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + SS)
+    #TODO: deletes the DH values and SS values.
+    # Associated data:
+    ad = (public_serialization(public_identity_key) + public_serialization(private_key_X.public_key()))
+
+
+
 
 
 def menu_user(username):
