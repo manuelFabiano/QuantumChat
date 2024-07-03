@@ -15,9 +15,10 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'kyberpy'))
 from kyberpy import kyber
 import json
 import time
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING
 from fe25519 import fe25519
 from ge25519 import ge25519, ge25519_p3
+from datetime import datetime
 
 
 
@@ -30,6 +31,7 @@ mongo_port = int(os.getenv('MONGO_PORT', '27018'))
 mongo_client = MongoClient(mongo_host, mongo_port)
 db = mongo_client.db
 keys_collection = db.keys
+chats_collection = db.chats
 
 
 # DOVREBBERO FUNZIONARE
@@ -323,7 +325,8 @@ def send_initial_message(username,destination):
             "type" : "INIT",
             "sender": username,
             "receiver": destination,
-            "message": initial_message
+            "message": initial_message,
+            "timestamp": time.time()
         }
 
         payload = json.dumps(payload, indent=4)
@@ -342,6 +345,7 @@ def send_initial_message(username,destination):
             "AD" : ad.hex()
         }}}  # Create a field for the receiver of chat containing SK and AD
         )
+        return (sk,ad)
     else:
         print("Signature check failed")
         print("Aborting chat...")
@@ -398,19 +402,81 @@ def handle_initial_message(msg):
     encrypted_text = bytes.fromhex(msg["message"]["initial_message"])
     decrypted_initial_message = aesgcm.decrypt(nonce, encrypted_text,bytes.fromhex(ad))
     if decrypted_initial_message.decode() == "**INITIAL MESSAGE**":
-        print(f"Initial message from {msg['sender']} correctly received")
+        #print(f"Initial message from {msg['sender']} correctly received")
         # Save secret key and associated data in the local database
         keys_collection.update_one(
         {'username': msg["receiver"]},
         {'$set': {f"{msg['sender']}": {
             "SK" : sk.hex(),
-            "AD" : ad.hex()
+            "AD" : ad
         }}} 
         )
     else:
         print("Initial message failed")
         print("Aborting chat...")
         return
+
+
+
+def send_message(sk,ad, msg,sender,receiver, nonce = b'\x00' * 12):
+    aesgcm = AESGCM(sk)
+    encrypted_message = aesgcm.encrypt(nonce, msg, ad).hex()
+    # Send message to the other user
+    payload = {
+        "type" : "MSG",
+        "sender": sender,
+        "receiver": receiver,
+        "message": encrypted_message,
+        "timestamp": time.time()
+    }
+
+    #Save on local database
+    chats_collection.insert_one(payload)
+    if "_id" in payload:
+        del payload["_id"]
+    #Save on server database
+    payload = json.dumps(payload, indent=4)
+    url = SERVER + "/send_message"
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    if response.status_code != 200:
+        print("Error in sending message")
+        print(response.text)
+        return
+
+
+def download_new_messages(username):
+    payload = {"username": username}
+    payload = json.dumps(payload, indent=4)
+    request = requests.post(SERVER + "/receive_messages",payload, headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    for msg in request.json()["messages"]:
+        #Save on local database
+        chats_collection.insert_one(msg)
+
+
+def get_active_chats(username):
+    list = []
+    messages = chats_collection.find({"$or":[{"receiver": username,"type":"INIT"}, {"sender": username,"type":"INIT"}]})
+    for message in messages:
+        if message["receiver"] == username:
+            list.append(message["sender"])
+        else:
+            list.append(message["receiver"])
+    return list
+
+
+
+def show_chat(user1,user2):
+    messages = list(chats_collection.find({"$or":[{"receiver": user1,"sender":user2,"type":"MSG"}, {"receiver": user2, "sender": user1, "type":"MSG"}]}).sort("timestamp",ASCENDING))
+    for message in messages:
+        if message["sender"] == user1:
+            print("                 ",message["message"])
+            print(datetime.fromtimestamp(message["timestamp"]))
+        else:
+            print(message["message"])
+            print(datetime.fromtimestamp(message["timestamp"]))
+        print("")
+        print("")
+
 
 
 
@@ -426,27 +492,33 @@ def menu_user(username):
         "receiver": username,
         "sender": "giulia"
     }
-    payload = json.dumps(payload, indent=4)
-    request = requests.post(SERVER + "/receive_messages",payload, headers = {"Content-Type": "application/json", "Accept": "application/json"})
-    print(request.json())
-    for msg in request.json()["messages"]:
-       if msg != None:
-           handle_initial_message(msg)
+   
+    #print(request.json())
 
     choice = input("Enter your choice: ")
     if choice == "0":
         return
     if choice == "1":
-        print("Chats\n")
-        destination = input("Type the username you want to chat with:")
-        # Controllare se esiste già una chat con quell'utente
+        print("Active chats\n")
+        # Controllare se esistono chat attive
+        download_new_messages(username)
+        chats = get_active_chats(username)
+        for chat in chats:
+            print(chat)
         # Altrimenti:
-        print("1. Start chat")
+        print("1. New chat")
         print("2. Back")
         choice = input("Enter your choice: ")
         if choice == "1":
+            receiver = input("Type the username you want to chat with:")
             print("Starting chat...")
-            sk = send_initial_message(username,destination)
+            sk,ad = send_initial_message(username,receiver)
+            send_message(sk,ad,b"Hello",username,receiver)
+        else:
+            for user in chats:
+                if choice == user:
+                    show_chat(username,choice)
+        
         
 def main():
     while 1:
