@@ -132,6 +132,7 @@ def send_message():
         sender = data["sender"]
         receiver = data["receiver"]
         message = data["message"]
+        timestamp = data["timestamp"]
 
         #Save message on MongoDB
         chats_collection.insert_one({
@@ -140,7 +141,7 @@ def send_message():
             "sender": sender,
             "receiver": receiver,
             "message": message,
-            "timestamp": time.time()
+            "timestamp": timestamp
         })
         # Da aggiungere la verifica che il receiver sia registrato
 
@@ -167,10 +168,9 @@ def send_message():
 def receive_messages():
     data = request.get_json()
     try:
-        receiver = data["receiver"]
-        sender = data["sender"]
+        username = data["username"]
 
-        messages = list(chats_collection.find({"receiver": receiver, "sender": sender , "received": 0}))
+        messages = list(chats_collection.find({"receiver": username,"received":0}))
         for message in messages:
             message["received"] = 1
             chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
