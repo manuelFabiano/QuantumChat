@@ -397,7 +397,20 @@ def handle_initial_message(msg):
     nonce = b'\x00' * 12
     encrypted_text = bytes.fromhex(msg["message"]["initial_message"])
     decrypted_initial_message = aesgcm.decrypt(nonce, encrypted_text,bytes.fromhex(ad))
-    print(f"Initial message from {msg['sender']}: {decrypted_initial_message.decode()}")
+    if decrypted_initial_message.decode() == "**INITIAL MESSAGE**":
+        print(f"Initial message from {msg['sender']} correctly received")
+        # Save secret key and associated data in the local database
+        keys_collection.update_one(
+        {'username': msg["receiver"]},
+        {'$set': {f"{msg['sender']}": {
+            "SK" : sk.hex(),
+            "AD" : ad.hex()
+        }}} 
+        )
+    else:
+        print("Initial message failed")
+        print("Aborting chat...")
+        return
 
 
 
