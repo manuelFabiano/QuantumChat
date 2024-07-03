@@ -354,18 +354,18 @@ def send_initial_message(username,destination):
 def handle_initial_message(msg):
     identity_key = msg["message"]["identity_key"]
     ephemeral_key = msg["message"]["ephemeral_key"]
-    local_keys = keys_collection.findOne({"username": msg["receiver"]})["private_keys"]
+    local_keys = keys_collection.find_one({"username": msg["receiver"]})["private_keys"]
     private_key = ed25519_private_key_decoder(local_keys["private_identity_key"])
     # Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
     #public_key_X
     public_identity_key = public_Xdeserialization(msg["message"]["identity_key"]) 
     #ephemeral_key_X
     ephemeral_key = public_Xdeserialization(msg["message"]["ephemeral_key"])
-    local_keys = keys_collection.findOne({"username":msg["receiver"]})["private_keys"]
+    local_keys = keys_collection.find_one({"username":msg["receiver"]})["private_keys"]
     #private_key_X
     private_key_X = private_ed_to_x(bytes.fromhex(local_keys["private_identity_key"]))
     ##Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
-    spk = X25519_private_key_decoder(local_keys["private_prekey"])  #Ce n'è solo una, quindi è inutile che vado a cercarla
+    spk = X25519_private_key_decoder(local_keys["private_prekey"]["key"])  #Ce n'è solo una, quindi è inutile che vado a cercarla
     if msg["message"]["curve_one_time_id"] != None:
       for key in local_keys["private_one_time_prekeys"]:
           if key["id"] == msg["message"]["curve_one_time_id"]:
@@ -373,22 +373,22 @@ def handle_initial_message(msg):
               break
 
     if local_keys["private_last_resort_pqkem_key"]["id"] == msg["message"]["pqkem_id"]:
-        pqpk = X25519_private_key_decoder(bytes.fromhex(local_keys["private_last_resort_pqkem_key"]["key"]))
+        pqpk = bytes.fromhex(local_keys["private_last_resort_pqkem_key"]["key"])
     else:
         for key in local_keys["private_one_time_pqkem_prekeys"]:
           if key["id"] == msg["message"]["pqkem_id"]:
-              pqpk = X25519_private_key_decoder(bytes.fromhex(key["key"]))
+              pqpk = bytes.fromhex(key["key"])
               break
     
-    SS = kyber.Kyber512.dec(msg["message"]["cipher_text"], pqpk)
+    SS = kyber.Kyber512.dec(bytes.fromhex(msg["message"]["cipher_text"]), pqpk)
     # DH1(SPKb,IKa)
     DH1 = spk.exchange(public_identity_key)
     # DH2(IKb,EKa)
     DH2 = private_key_X.exchange(ephemeral_key)
     # DH3(SPKb,EKa)
-    DH3 = spk.exchange(bytes.fromhex(msg["message"]["ephemeral_key"]))
+    DH3 = spk.exchange(ephemeral_key)
     # DH4(OPKb,EKa)
-    DH4 = pqpk.exchange(public_Xdeserialization(msg["message"]["ephemeral_key"]))
+    DH4 = opk.exchange(ephemeral_key)
     sk = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + SS)
     #TODO: deletes the DH values and SS values.
     # Associated data:
@@ -396,7 +396,8 @@ def handle_initial_message(msg):
     aesgcm = AESGCM(sk)
     nonce = b'\x00' * 12
     encrypted_text = bytes.fromhex(msg["message"]["initial_message"])
-    decrypted_initial_message = aesgcm.decrypt(nonce, encrypted_text,ad)
+    decrypted_initial_message = aesgcm.decrypt(nonce, encrypted_text,bytes.fromhex(ad))
+    print(f"Initial message from {msg['sender']}: {decrypted_initial_message.decode()}")
 
 
 
@@ -407,6 +408,17 @@ def menu_user(username):
     print("1. Chats")
     print("2. Groups")
     print("0. Back")
+
+    payload = {
+        "receiver": username,
+        "sender": "giulia"
+    }
+    payload = json.dumps(payload, indent=4)
+    request = requests.post(SERVER + "/receive_messages",payload, headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    print(request.json())
+    for msg in request.json()["messages"]:
+       if msg != None:
+           handle_initial_message(msg)
 
     choice = input("Enter your choice: ")
     if choice == "0":
