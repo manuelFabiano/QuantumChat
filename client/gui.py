@@ -13,8 +13,9 @@ class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("QuantumChat")
+        self.setContentsMargins(0, 0, 0, 0)
         self.setFixedSize(300, 500)
-        self.setGeometry(100, 100, 300, 500)
+        #self.setGeometry(100, 100, 300, 500)
 
         self.setStyleSheet("background-color: #fcfcfc;")
         
@@ -41,73 +42,80 @@ class MainWindow(QMainWindow):
     def init_main_menu(self):
         layout = QVBoxLayout()
         
+        
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
         logo_label = QLabel(self)
         pixmap = QPixmap("logo.png").scaled(250, 250, Qt.KeepAspectRatio, Qt.SmoothTransformation)
         logo_label.setPixmap(pixmap)
         logo_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(logo_label)
         
+        # Adding spacing between the logo and buttons
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
         style = """
     QPushButton {
-        background-color: white;
-        border: 2px solid #1A1A1A;
+        background-color: #5CB7DA;
+        border: 2px solid #28a4d4;
         border-radius: 15px;
-        color: #3B3B3B;
-        font-size: 16px;
+        color: #fff;
+        font-size: 20px;
         font-weight: 600;
         line-height: normal;
-        min-height: 60px;
-        padding: 16px 24px;
         text-align: center;
         text-decoration: none;
-        width: 100%;
     
     }
     QPushButton:hover {
         color: #fff;
-        background-color: #1A1A1A;
+        background-color: #6fcaed;
     }
 """
+        
 
         login_button = QPushButton("Login", self)
         login_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.login_menu))
         login_button.setStyleSheet(style)
+        login_button.setCursor(QCursor(Qt.PointingHandCursor))
+        login_button.setFixedSize(180, 60)
         effect = QGraphicsDropShadowEffect()
         effect.setOffset(5, 5)
         effect.setBlurRadius(15)
         login_button.setGraphicsEffect(effect)
-        layout.addWidget(login_button)
+        layout.addWidget(login_button, alignment=Qt.AlignCenter)
         
         register_button = QPushButton("Register", self)
         register_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.register_menu))
         register_button.setStyleSheet(style)
+        register_button.setCursor(QCursor(Qt.PointingHandCursor))
+        register_button.setFixedSize(180, 60)
         effect2 = QGraphicsDropShadowEffect()
         effect2.setOffset(5, 5)
         effect2.setBlurRadius(15)
         register_button.setGraphicsEffect(effect2)
-        layout.addWidget(register_button)
+        layout.addWidget(register_button, alignment=Qt.AlignCenter)
         
         exit_button = QPushButton("Exit", self)
         exit_button.clicked.connect(self.close)
+        exit_button.setCursor(QCursor(Qt.PointingHandCursor))
+        exit_button.setFixedSize(120, 50)
         exit_button.setStyleSheet("""
     QPushButton {
-        background-color: white;
-        border: 2px solid #1A1A1A;
+        background-color: #e31717;
+        border: 2px solid #c20606;
         border-radius: 15px;
-        color: #3B3B3B;
-        font-size: 16px;
+        color: #fff;
+        font-size: 20px;
         font-weight: 600;
         line-height: normal;
-        min-height: 30px;
-        padding: 16px 24px;
         text-align: center;
         text-decoration: none;
-        width: 100%;
     
     }
     QPushButton:hover {
         color: #fff;
-        background-color: #d12219;
+        background-color: #eb3636;
     }
 """)    
         effect3 = QGraphicsDropShadowEffect()
@@ -115,7 +123,13 @@ class MainWindow(QMainWindow):
         effect3.setBlurRadius(15)
         exit_button.setGraphicsEffect(effect3)
         #exit_button.setFixedWidth(200)
-        layout.addWidget(exit_button)
+        layout.addWidget(exit_button, alignment=Qt.AlignCenter)
+
+        # Reducing the vertical spacing between widgets
+        layout.setSpacing(15)
+
+        # Adding spacing between the logo and buttons
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
         
         self.main_menu.setLayout(layout)
 
@@ -514,6 +528,7 @@ class ChatWindow(QWidget):
         super().__init__()
         self.main_window = main_window
         self.chat_user = None
+        self.chat_length = 0
         self.init_ui()
 
     def set_chat_user(self, chat_user):
@@ -523,7 +538,7 @@ class ChatWindow(QWidget):
     
     def init_ui(self):
         layout = QVBoxLayout()
-
+        layout.setContentsMargins(0, 5, 0, 5)
         # Top bar with the username of the chat user
         top_bar = QHBoxLayout()
         back_button = QPushButton("<", self)
@@ -541,6 +556,9 @@ class ChatWindow(QWidget):
         # Chat display area
         self.chat_display = QTextEdit(self)
         self.chat_display.setReadOnly(True)
+        # Set the size policy to expand horizontally and vertically
+        self.chat_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.chat_display.setStyleSheet("background-color: #f5f5f5; border: none;")
         layout.addWidget(self.chat_display)
 
         # Message input area
@@ -563,12 +581,14 @@ class ChatWindow(QWidget):
         self.timer.timeout.connect(self.fetch_messages)
     
     def fetch_messages(self):
-        self.chat_display.clear()
         download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
         messages = load_chat(self.main_window.user_menu.username, self.chat_user ,self.main_window.user_menu.db.chats)
-        for message in messages:
-            message = decrypt_message(message, self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.keys)
-            self.add_message(message["sender"], message["message"].decode())
+        if len(messages) > self.chat_length:
+            self.chat_display.clear()
+            for message in messages:
+                message = decrypt_message(message, self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.keys)
+                self.add_message(message["sender"], message["message"].decode())
+            self.chat_length = len(messages)
 
     def apply_style(self):
         style = """
