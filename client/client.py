@@ -25,13 +25,12 @@ from datetime import datetime
 #Server URL
 SERVER = "http://localhost:5001"
 
-# MongoDB connection
-mongo_host = os.getenv('MONGO_HOST', 'localhost')
-mongo_port = int(os.getenv('MONGO_PORT', '27018'))
-mongo_client = MongoClient(mongo_host, mongo_port)
-db = mongo_client.db
-keys_collection = db.keys
-chats_collection = db.chats
+def connect_local_db(username):
+    mongo_host = os.getenv('MONGO_HOST', 'localhost')
+    mongo_port = int(os.getenv('MONGO_PORT', '27018'))
+    mongo_client = MongoClient(mongo_host, mongo_port)
+    db = mongo_client[f"{username}_db"]
+    return db
 
 
 # DOVREBBERO FUNZIONARE
@@ -121,7 +120,7 @@ def read_keys():
 
 
 #save keys to mongoDB
-def export_keys(username,data):
+def export_keys(username,data, keys_collection):
     data = json.dumps(data, cls=PrivateKeyEncoder, indent=4)
     data = json.loads(data)
     keys_collection.insert_one({
@@ -197,6 +196,7 @@ def generate_keys():
         "sign_on_one_time_pqkem_prekeys" : sign_on_one_time_pqkem_prekeys
     }
 
+    # E' necessario restituire anche le chiavi private?
     return (private_keys,public_keys)
     
 
@@ -256,7 +256,7 @@ def X3DH_KDF(DHs):
     )
     return hkdf.derive(km)
     
-def send_initial_message(username,destination):
+def send_initial_message(username,destination, keys_collection, chats_collection):
     key_bundle = fetch_key_bundle(destination)
     if key_bundle.status_code != 200:
         print("User not found")
@@ -329,14 +329,17 @@ def send_initial_message(username,destination):
             "timestamp": time.time()
         }
 
-        payload = json.dumps(payload, indent=4)
+        payload1 = json.dumps(payload, indent=4)
         url = SERVER + "/send_message"
-        response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+        response = requests.post(url, payload1,headers = {"Content-Type": "application/json", "Accept": "application/json"})
         if response.status_code != 200:
             print("Error in sending message")
             print(response.text)
             return
         
+        # Save INIT message in the local database
+        chats_collection.insert_one(payload)
+
         # Save secret key and associated data in the local database
         keys_collection.update_one(
         {'username': username},
@@ -355,7 +358,7 @@ def send_initial_message(username,destination):
 
 
 
-def handle_initial_message(msg):
+def handle_initial_message(msg, keys_collection):
     identity_key = msg["message"]["identity_key"]
     ephemeral_key = msg["message"]["ephemeral_key"]
     local_keys = keys_collection.find_one({"username": msg["receiver"]})["private_keys"]
@@ -418,7 +421,11 @@ def handle_initial_message(msg):
 
 
 
-def send_message(sk,ad, msg,sender,receiver, nonce = b'\x00' * 12):
+def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce = b'\x00' * 12):
+    # Get secret key and associated data from the local database
+    local_keys = keys_collection.find_one({"username": sender})
+    sk = bytes.fromhex(local_keys[receiver]["SK"])
+    ad = bytes.fromhex(local_keys[receiver]["AD"])
     aesgcm = AESGCM(sk)
     encrypted_message = aesgcm.encrypt(nonce, msg, ad).hex()
     # Send message to the other user
@@ -443,17 +450,26 @@ def send_message(sk,ad, msg,sender,receiver, nonce = b'\x00' * 12):
         print(response.text)
         return
 
+def decrypt_message(msg,user,other_user,keys_collection, nonce = b'\x00' * 12):
+    local_keys = keys_collection.find_one({"username": user})
+    sk = bytes.fromhex(local_keys[other_user]["SK"])
+    ad = bytes.fromhex(local_keys[other_user]["AD"])
+    aesgcm = AESGCM(sk)
+    msg["message"] = aesgcm.decrypt(nonce, bytes.fromhex(msg["message"]),ad)
+    return msg
 
-def download_new_messages(username):
+def download_new_messages(username, db):
     payload = {"username": username}
     payload = json.dumps(payload, indent=4)
     request = requests.post(SERVER + "/receive_messages",payload, headers = {"Content-Type": "application/json", "Accept": "application/json"})
     for msg in request.json()["messages"]:
+        if msg["type"] == "INIT":
+            handle_initial_message(msg,db.keys)
         #Save on local database
-        chats_collection.insert_one(msg)
+        db.chats.insert_one(msg)
 
 
-def get_active_chats(username):
+def get_active_chats(username, chats_collection):
     list = []
     messages = chats_collection.find({"$or":[{"receiver": username,"type":"INIT"}, {"sender": username,"type":"INIT"}]})
     for message in messages:
@@ -464,8 +480,10 @@ def get_active_chats(username):
     return list
 
 
+def load_chat(user1, user2, chats_collection):
+    return list(chats_collection.find({"$or":[{"receiver": user1,"sender":user2,"type":"MSG"}, {"receiver": user2, "sender": user1, "type":"MSG"}]}).sort("timestamp",ASCENDING))
 
-def show_chat(user1,user2):
+def show_chat(user1,user2, chats_collection):
     messages = list(chats_collection.find({"$or":[{"receiver": user1,"sender":user2,"type":"MSG"}, {"receiver": user2, "sender": user1, "type":"MSG"}]}).sort("timestamp",ASCENDING))
     for message in messages:
         if message["sender"] == user1:
@@ -482,6 +500,9 @@ def show_chat(user1,user2):
 
 
 def menu_user(username):
+    db = connect_local_db(username)
+    keys_collection = db.keys
+    chats_collection = db.chats
     print(f"Welcome {username}!")
     print("Main menu\n")
     print("1. Chats")
@@ -512,8 +533,8 @@ def menu_user(username):
         if choice == "1":
             receiver = input("Type the username you want to chat with:")
             print("Starting chat...")
-            sk,ad = send_initial_message(username,receiver)
-            send_message(sk,ad,b"Hello",username,receiver)
+            sk,ad = send_initial_message(username,receiver, keys_collection)
+            send_message(b"Hello",username,receiver, chats_collection)
         else:
             for user in chats:
                 if choice == user:
@@ -522,7 +543,7 @@ def menu_user(username):
         
 def main():
     while 1:
-    
+        
         print("Welcome to QuantumChat!")
         print("")
         print("Select a choice: ")
@@ -566,11 +587,12 @@ def main():
 
             #Register the user on server with his private keys
             response = register(username, password, keys[1])
-
+            db = connect_local_db(username)
+            keys_collection = db.keys
             #if the user has been correctly registered, save 
             # private keys locally and go to menu
             if response.status_code == 200:
-                export_keys(username,keys[0])
+                export_keys(username,keys[0], keys_collection)
                 menu_user(username)  
             else:
                 print(response.text)

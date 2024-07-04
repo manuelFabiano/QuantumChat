@@ -1,9 +1,13 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QMessageBox, QStackedWidget, QGraphicsDropShadowEffect, QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPixmap
-from client import login, register, generate_keys  # Import functions from client.py
+from PyQt5 import QtCore
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QMessageBox, QStackedWidget, QGraphicsDropShadowEffect, QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem, QHBoxLayout, QTextEdit
+from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtGui import QPixmap, QCursor
+
 from cryptography.hazmat.primitives import hashes
+
+from client import download_new_messages, login, register, generate_keys, get_active_chats, connect_local_db, export_keys, load_chat, send_message, send_initial_message, decrypt_message
+
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -22,7 +26,9 @@ class MainWindow(QMainWindow):
         self.register_menu = RegisterWindow(self)
         self.user_menu = UserMenu(self)
         self.chat_list_window = ChatListWindow(self)
+        self.chat_window = ChatWindow(self)
         
+
         self.init_main_menu()
         
         self.central_widget.addWidget(self.main_menu)
@@ -30,6 +36,7 @@ class MainWindow(QMainWindow):
         self.central_widget.addWidget(self.register_menu)
         self.central_widget.addWidget(self.user_menu)
         self.central_widget.addWidget(self.chat_list_window)
+        self.central_widget.addWidget(self.chat_window)
 
     def init_main_menu(self):
         layout = QVBoxLayout()
@@ -198,8 +205,12 @@ class LoginWindow(QWidget):
         
         response = login(username, password_hashed)
         if response.status_code == 200:
+            self.main_window.user_menu.username = username
             self.main_window.user_menu.set_username(username)
+            # After the login, connect to local db
+            self.main_window.user_menu.db = connect_local_db(username)
             self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
+            
         else:
             QMessageBox.warning(self, "Error", response.text)
 
@@ -279,6 +290,8 @@ class RegisterWindow(QWidget):
         self.layout.addItem(self.spacer_bottom)
         
         self.setLayout(self.layout)
+
+    # Function for register logic
     def register(self):
         username = self.username_input.text()
         password = self.password_input.text()
@@ -288,10 +301,15 @@ class RegisterWindow(QWidget):
         digest.update(password.encode())
         password_hashed = digest.finalize().hex()
         
-        public_keys = generate_keys()
+        keys = generate_keys()
         
-        response = register(username, password_hashed, public_keys)
+        response = register(username, password_hashed, keys[1])
         if response.status_code == 200:
+            # After the login, connect to local db
+            self.main_window.user_menu.db = connect_local_db(username)
+            # Save the keys in the local db
+            export_keys(username,keys[0], self.main_window.user_menu.db.keys)
+            # Change window
             self.main_window.user_menu.set_username(username)
             self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
         else:
@@ -309,28 +327,74 @@ class UserMenu(QWidget):
         self.layout.addItem(self.spacer_top)
         
         self.welcome_label = QLabel()
+        self.welcome_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.welcome_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.welcome_label)
         
         self.chats_button = QPushButton("Chats")
-        self.chats_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window))
-        self.layout.addWidget(self.chats_button)
+        self.chats_button.clicked.connect(self.show_chats)
+        self.chats_button.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                border: 2px solid #1A1A1A;
+                border-radius: 15px;
+                color: #3B3B3B;
+                font-weight: 600;
+                padding: 16px 24px;
+                text-align: center;
+                text-decoration: none;
+            }
+            QPushButton:hover {
+                color: #fff;
+                background-color: #1A1A1A
+            }
+        """)
+        self.layout.addWidget(self.chats_button, alignment=Qt.AlignCenter)
         
         self.groups_button = QPushButton("Groups")
         self.groups_button.clicked.connect(self.show_groups)
-        self.layout.addWidget(self.groups_button)
+        self.groups_button.setStyleSheet("""
+            QPushButton {
+                background-color: white;
+                border: 2px solid #1A1A1A;
+                border-radius: 15px;
+                color: #3B3B3B;
+                font-weight: 600;
+                padding: 16px 24px;
+                text-align: center;
+                text-decoration: none;
+            }
+            QPushButton:hover {
+                color: #fff;
+                background-color: #1A1A1A
+            }
+        """)
+        self.layout.addWidget(self.groups_button, alignment=Qt.AlignCenter)
         
         self.back_button = QPushButton("Back")
         self.back_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu))
-        self.layout.addWidget(self.back_button)
+        self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
+
+        self.spacer_bottom = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.layout.addItem(self.spacer_bottom)
         
         self.setLayout(self.layout)
 
+    def back(self):
+        self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu)
+
     def set_username(self, username):
+        self.username = username
         self.welcome_label.setText(f"Welcome {username}!")
 
     def show_chats(self):
-        QMessageBox.information(self, "Chats", "Displaying Chats...")
+        # We want to download new messages before showing the chats
+        download_new_messages(self.username, self.main_window.user_menu.db)
+        # Get the list of active chats
+        chats = get_active_chats(self.username, self.main_window.user_menu.db.chats)
+        self.main_window.chat_list_window.timer.start(1000)
+        self.main_window.chat_list_window.set_chats(chats)
+        self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window)
 
     def show_groups(self):
         QMessageBox.information(self, "Groups", "Displaying Groups...")
@@ -345,21 +409,44 @@ class ChatListWindow(QWidget):
     def init_ui(self):
         layout = QVBoxLayout()
 
-        self.search_bar = QLineEdit(self)
-        self.search_bar.setPlaceholderText("Search for a user")
-        self.search_bar.textChanged.connect(self.filter_chats)
-        layout.addWidget(self.search_bar)
+        # Create a back button
+        back_button = QPushButton("<- Back", self)
+        back_button.setFixedSize(50, 10)
+        back_button.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
+        back_button.clicked.connect(self.back)
+        layout.addWidget(back_button, alignment=Qt.AlignLeft)
+
+        # Create a search bar
+        search_bar = QHBoxLayout()
+        self.search_input = QLineEdit(self)
+        self.search_input.setPlaceholderText("Search for a user")
+        self.search_input.textChanged.connect(self.filter_chats)
+        search_bar.addWidget(self.search_input)
+
+        contact_button = QPushButton("New Chat", self)
+        contact_button.clicked.connect(self.new_chat)
+        search_bar.addWidget(contact_button)
+
+        layout.addLayout(search_bar)
 
         self.chat_list = QListWidget(self)
+        self.chat_list.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
         layout.addWidget(self.chat_list)
-
-        self.set_chats(["Giulio", "Marco", "Giovanni", "Bob", "Alice"])
-
+    
         self.setLayout(layout)
         self.apply_style()
 
+        # Set up a timer to fetch messages every second
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.fetch_chats)
+
     def apply_style(self):
         style = """
+        QPushButton {
+            background-color: #fcfcfc;
+            border: none;
+        }
+        
         QLineEdit {
             padding: 10px;
             font-size: 16px;
@@ -376,14 +463,26 @@ class ChatListWindow(QWidget):
             border-bottom: 1px solid #ddd;
         }
         QListWidget::item:hover {
-            background-color: #1A1A1A;
+            background-color: #8f8f8f;
             color: white;
         }
         """
         self.setStyleSheet(style)
 
+    def new_chat(self):
+        user = self.search_input.text().strip()
+        if user != "":
+            send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats)
+            self.main_window.chat_window.set_chat_user(user)
+            self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+
     def set_chats(self, chats):
         self.chats = chats
+        self.display_chats(chats)
+
+    def fetch_chats(self):
+        download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
+        chats = get_active_chats(self.main_window.user_menu.username, self.main_window.user_menu.db.chats)
         self.display_chats(chats)
 
     def display_chats(self, chats):
@@ -394,14 +493,133 @@ class ChatListWindow(QWidget):
         self.chat_list.itemClicked.connect(self.open_chat)
 
     def filter_chats(self):
-        search_text = self.search_bar.text().lower()
+        search_text = self.search_input.text().lower()
         filtered_chats = [chat for chat in self.chats if search_text in chat.lower()]
         self.display_chats(filtered_chats)
 
     def open_chat(self, item):
+        self.timer.stop()
         chat_user = item.text()
-        # Implement logic to open chat with the selected user
         print(f"Opening chat with {chat_user}")
+        self.main_window.chat_window.set_chat_user(chat_user)
+        self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+        self.main_window.chat_window.timer.start(1000)
+    
+    def back(self):
+        self.timer.stop()
+        self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
+
+class ChatWindow(QWidget):
+    def __init__(self, main_window):
+        super().__init__()
+        self.main_window = main_window
+        self.chat_user = None
+        self.init_ui()
+
+    def set_chat_user(self, chat_user):
+        self.chat_user = chat_user
+        self.setWindowTitle(self.chat_user)
+        self.user_label.setText(self.chat_user)
+    
+    def init_ui(self):
+        layout = QVBoxLayout()
+
+        # Top bar with the username of the chat user
+        top_bar = QHBoxLayout()
+        back_button = QPushButton("<", self)
+        back_button.setFixedSize(30, 30)
+        back_button.clicked.connect(self.go_back)
+        top_bar.addWidget(back_button, alignment=Qt.AlignLeft)
+
+        self.user_label = QLabel(self.chat_user, self)
+        self.user_label.setAlignment(Qt.AlignCenter)
+        top_bar.addWidget(self.user_label)
+        
+        top_bar.addStretch()
+        layout.addLayout(top_bar)
+
+        # Chat display area
+        self.chat_display = QTextEdit(self)
+        self.chat_display.setReadOnly(True)
+        layout.addWidget(self.chat_display)
+
+        # Message input area
+        bottom_bar = QHBoxLayout()
+        self.message_input = QLineEdit(self)
+        self.message_input.setPlaceholderText("Type your message here...")
+        bottom_bar.addWidget(self.message_input)
+        
+        send_button = QPushButton("Send", self)
+        send_button.clicked.connect(self.send_message)
+        bottom_bar.addWidget(send_button)
+        
+        layout.addLayout(bottom_bar)
+        
+        self.setLayout(layout)
+        self.apply_style()
+
+        # Set up a timer to fetch messages every second
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.fetch_messages)
+    
+    def fetch_messages(self):
+        self.chat_display.clear()
+        download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
+        messages = load_chat(self.main_window.user_menu.username, self.chat_user ,self.main_window.user_menu.db.chats)
+        for message in messages:
+            message = decrypt_message(message, self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.keys)
+            self.add_message(message["sender"], message["message"].decode())
+
+    def apply_style(self):
+        style = """
+        QLabel {
+            font-size: 18px;
+            font-weight: bold;
+        }
+        QTextEdit {
+            background-color: #F0F0F0;
+            padding: 10px;
+            font-size: 16px;
+        }
+        QLineEdit {
+            padding: 10px;
+            font-size: 16px;
+        }
+        QPushButton {
+            background-color: #1A1A1A;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            min-width: 80px;
+        }
+        QPushButton:hover {
+            background-color: #3B3B3B;
+        }
+        """
+        self.setStyleSheet(style)
+
+    def send_message(self):
+        message = self.message_input.text().strip()
+        if message:
+            send_message(bytes(message, 'utf-8'),self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.chats, self.main_window.user_menu.db.keys)
+            self.add_message(self.main_window.user_menu.username, message)
+            self.message_input.clear()
+
+    def add_message(self, sender, message):
+        if sender == self.main_window.user_menu.username:
+            alignment = Qt.AlignRight
+        else:
+            alignment = Qt.AlignLeft
+
+        self.chat_display.append(f"<p style='text-align: {alignment};'><b>{sender}:</b> {message}</p>")
+
+    def go_back(self):
+        self.timer.stop()
+        self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
+        
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

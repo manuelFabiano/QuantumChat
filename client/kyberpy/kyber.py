@@ -312,6 +312,23 @@ class Kyber:
         c = self._cpapke_enc(pk, m_hash, r)
         K = self._kdf(Kbar + self._h(c), key_length)
         return c, K
+    
+    def enc_key(self, pk, m, key_length=32):
+        """
+        Algorithm 8 (CCA KEM Encapsulation)
+        https://pq-crystals.org/kyber/data/kyber-specification-round3-20210804.pdf
+        
+        Input: 
+            pk: Public Key
+        Output:
+            c:  Ciphertext
+            K:  Shared key
+        """
+        m_hash = self._h(m)
+        Kbar, r = self._g(m_hash + self._h(pk))
+        c = self._cpapke_enc(pk, m_hash, r)
+        K = self._kdf(Kbar + self._h(c), key_length)
+        return c, K
 
     def dec(self, c, sk, key_length=32):
         """
