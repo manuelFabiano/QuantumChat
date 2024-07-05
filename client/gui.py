@@ -161,47 +161,61 @@ class LoginWindow(QWidget):
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.setStyleSheet("font-size: 16px; padding: 10px; background-color: #f5f5f5; border: 1px solid #e6e6e6; border-radius: 5px;")
         self.layout.addWidget(self.password_input, alignment=Qt.AlignCenter)
-        
+        self.layout.setSpacing(15)
         self.register_button = QPushButton("Login")
-        self.register_button.setFixedSize(200, 50)  # Aumenta le dimensioni del bottone
+        self.register_button.setFixedSize(150, 50)  # Aumenta le dimensioni del bottone
         self.register_button.setStyleSheet("""
             QPushButton {
-                background-color: white;
-                border: 2px solid #1A1A1A;
-                border-radius: 15px;
-                color: #3B3B3B;
-                font-weight: 600;
-                padding: 16px 24px;
-                text-align: center;
-                text-decoration: none;
-            }
-            QPushButton:hover {
-                color: #fff;
-                background-color: #1A1A1A
-            }
+            background-color: #5CB7DA;
+            border: 2px solid #28a4d4;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: normal;
+            text-align: center;
+            text-decoration: none;
+        
+        }
+        QPushButton:hover {
+            color: #fff;
+            background-color: #6fcaed;
+        }   
         """)
         self.register_button.clicked.connect(self.login)
+        effect = QGraphicsDropShadowEffect()
+        effect.setOffset(3, 3)
+        effect.setBlurRadius(30)
+        self.register_button.setGraphicsEffect(effect)
+        self.register_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.layout.addWidget(self.register_button, alignment=Qt.AlignCenter)
         
         self.back_button = QPushButton("Back")
-        self.back_button.setFixedSize(200, 50)  # Aumenta le dimensioni del bottone
+        self.back_button.setFixedSize(100, 40)  # Aumenta le dimensioni del bottone
         self.back_button.setStyleSheet("""
             QPushButton {
-                background-color: white;
-                border: 2px solid #1A1A1A;
-                border-radius: 15px;
-                color: #3B3B3B;
-                font-weight: 600;
-                padding: 16px 24px;
-                text-align: center;
-                text-decoration: none;
-            }
-            QPushButton:hover {
-                color: #fff;
-                background-color: #d12219;
-            }
+        background-color: #e31717;
+        border: 2px solid #c20606;
+        border-radius: 15px;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 600;
+        line-height: normal;
+        text-align: center;
+        text-decoration: none;
+    
+    }
+    QPushButton:hover {
+        color: #fff;
+        background-color: #eb3636;
+    }
         """)
         self.back_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu))
+        effect2 = QGraphicsDropShadowEffect()
+        effect2.setOffset(3, 3)
+        effect2.setBlurRadius(30)
+        self.back_button.setGraphicsEffect(effect2)
+        self.back_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
         
         self.spacer_bottom = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -235,7 +249,7 @@ class RegisterWindow(QWidget):
         self.setWindowTitle("Register")
         
         self.layout = QVBoxLayout()
-        
+        self.layout.setSpacing(15)
         self.spacer_top = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.layout.addItem(self.spacer_top)
         
@@ -244,8 +258,8 @@ class RegisterWindow(QWidget):
         self.layout.addWidget(self.username_label, alignment=Qt.AlignCenter)
         
         self.username_input = QLineEdit()
-        self.username_input.setFixedSize(300, 40)  # Aumenta le dimensioni del box di input
-        self.username_input.setStyleSheet("font-size: 16px; padding: 10px;")
+        self.username_input.setFixedSize(250, 40)  # Aumenta le dimensioni del box di input
+        self.username_input.setStyleSheet("font-size: 16px; padding: 10px; background-color: #f5f5f5; border: 1px solid #e6e6e6; border-radius: 5px;")
         self.layout.addWidget(self.username_input, alignment=Qt.AlignCenter)
         
         self.password_label = QLabel("Password:")
@@ -253,51 +267,65 @@ class RegisterWindow(QWidget):
         self.layout.addWidget(self.password_label, alignment=Qt.AlignCenter)
         
         self.password_input = QLineEdit()
-        self.password_input.setFixedSize(300, 40)  # Aumenta le dimensioni del box di input
+        self.password_input.setFixedSize(250, 40)  # Aumenta le dimensioni del box di input
         self.password_input.setEchoMode(QLineEdit.Password)
-        self.password_input.setStyleSheet("font-size: 16px; padding: 10px;")
+        self.password_input.setStyleSheet("font-size: 16px; padding: 10px; background-color: #f5f5f5; border: 1px solid #e6e6e6; border-radius: 5px;")
         self.layout.addWidget(self.password_input, alignment=Qt.AlignCenter)
         
         self.register_button = QPushButton("Register")
-        self.register_button.setFixedSize(200, 50)  # Aumenta le dimensioni del bottone
+        self.register_button.setFixedSize(150, 50)  # Aumenta le dimensioni del bottone
         self.register_button.setStyleSheet("""
             QPushButton {
-                background-color: white;
-                border: 2px solid #1A1A1A;
-                border-radius: 15px;
-                color: #3B3B3B;
-                font-weight: 600;
-                padding: 16px 24px;
-                text-align: center;
-                text-decoration: none;
-            }
-            QPushButton:hover {
-                color: #fff;
-                background-color: #1A1A1A
-            }
+            background-color: #5CB7DA;
+            border: 2px solid #28a4d4;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: normal;
+            text-align: center;
+            text-decoration: none;
+        
+        }
+        QPushButton:hover {
+            color: #fff;
+            background-color: #6fcaed;
+        }   
         """)
         self.register_button.clicked.connect(self.register)
+        effect = QGraphicsDropShadowEffect()
+        effect.setOffset(3, 3)
+        effect.setBlurRadius(30)
+        self.register_button.setGraphicsEffect(effect)
+        self.register_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.layout.addWidget(self.register_button, alignment=Qt.AlignCenter)
         
         self.back_button = QPushButton("Back")
-        self.back_button.setFixedSize(200, 50)  # Aumenta le dimensioni del bottone
+        self.back_button.setFixedSize(100, 40)  # Aumenta le dimensioni del bottone
         self.back_button.setStyleSheet("""
             QPushButton {
-                background-color: white;
-                border: 2px solid #1A1A1A;
-                border-radius: 15px;
-                color: #3B3B3B;
-                font-weight: 600;
-                padding: 16px 24px;
-                text-align: center;
-                text-decoration: none;
-            }
-            QPushButton:hover {
-                color: #fff;
-                background-color: #d12219;
-            }
+        background-color: #e31717;
+        border: 2px solid #c20606;
+        border-radius: 15px;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 600;
+        line-height: normal;
+        text-align: center;
+        text-decoration: none;
+    
+    }
+    QPushButton:hover {
+        color: #fff;
+        background-color: #eb3636;
+    }
         """)
         self.back_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu))
+        effect2 = QGraphicsDropShadowEffect()
+        effect2.setOffset(3, 3)
+        effect2.setBlurRadius(30)
+        self.back_button.setGraphicsEffect(effect2)
+        self.back_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
         
         self.spacer_bottom = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -489,6 +517,7 @@ class ChatListWindow(QWidget):
         if user != "":
             send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats)
             self.main_window.chat_window.set_chat_user(user)
+            self.main_window.chat_window.timer.start(1000)
             self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
 
     def set_chats(self, chats):
@@ -564,12 +593,17 @@ class ChatWindow(QWidget):
 
         # Message input area
         bottom_bar = QHBoxLayout()
+        bottom_bar.setSpacing(0)
         self.message_input = QLineEdit(self)
         self.message_input.setPlaceholderText("Type your message here...")
         bottom_bar.addWidget(self.message_input)
         
         send_button = QPushButton("Send", self)
         send_button.clicked.connect(self.send_message)
+        send_button.setFixedSize(70, 42)
+        send_button.setStyleSheet(
+        "color: white; background-color: #5CB7DA; border: 2px solid #28a4d4; border-top-right-radius: 15px; border-bottom-right-radius: 15px; margin-right: 5px; font-size: 16px; font-weight: bold;")
+        
         bottom_bar.addWidget(send_button)
         
         layout.addLayout(bottom_bar)
@@ -605,15 +639,10 @@ class ChatWindow(QWidget):
         QLineEdit {
             padding: 10px;
             font-size: 16px;
-        }
-        QPushButton {
-            background-color: #1A1A1A;
-            color: white;
-            border: none;
-            border-radius: 15px;
-            font-size: 16px;
-            font-weight: bold;
-            min-width: 80px;
+            border-top-left-radius: 15px;
+            border-bottom-left-radius: 15px;
+            border: 1px solid #1A1A1A;
+            margin-left: 5px;
         }
         QPushButton:hover {
             background-color: #3B3B3B;

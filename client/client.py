@@ -268,15 +268,16 @@ def login(username,password):
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
     print(response.json())
-    if (int(response.json()["otp"])) < 2:
-        print(TerminalColors.WARNING + "Warning: few one time keys remaining. Generating new ones" + TerminalColors.END)
-        generate_one_time(username)
-    if response.json()["prekey_expired"]:
-        print(TerminalColors.WARNING + "Warning: curve prekey expired. Generating new one" + TerminalColors.END)
-        generate_prekey(username)
-    if response.json()["last_resort_expired"]:
-        print(TerminalColors.WARNING + "Warning: pqkem prekey expired. Generating new one" + TerminalColors.END)
-        generate_last_resort(username)
+    if response.status_code == 200:
+        if (int(response.json()["otp"])) < 2:
+            print(TerminalColors.WARNING + "Warning: few one time keys remaining. Generating new ones" + TerminalColors.END)
+            generate_one_time(username)
+        if response.json()["prekey_expired"]:
+            print(TerminalColors.WARNING + "Warning: curve prekey expired. Generating new one" + TerminalColors.END)
+            generate_prekey(username)
+        if response.json()["last_resort_expired"]:
+            print(TerminalColors.WARNING + "Warning: pqkem prekey expired. Generating new one" + TerminalColors.END)
+            generate_last_resort(username)
     return response
 
 def generate_last_resort(username):
@@ -484,8 +485,9 @@ def handle_initial_message(msg, keys_collection):
     #private_key_X
     private_key_X = private_ed_to_x(bytes.fromhex(local_keys["private_identity_key"]))
 
-    for key in local_keys["private_prekeys"]:
+    for key in local_keys["private_prekey"]:
         if key["id"] == msg["message"]["public_prekey_id"]:
+            print(key["key"])
             spk = X25519_private_key_decoder(key["key"])
             break
 
