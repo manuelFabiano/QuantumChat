@@ -14,7 +14,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("QuantumChat")
         self.setContentsMargins(0, 0, 0, 0)
-        self.setFixedSize(300, 500)
+        self.setFixedSize(360, 640)
         #self.setGeometry(100, 100, 300, 500)
 
         self.setStyleSheet("background-color: #fcfcfc;")
@@ -407,6 +407,7 @@ class UserMenu(QWidget):
         # Get the list of active chats
         chats = get_active_chats(self.username, self.main_window.user_menu.db.chats)
         self.main_window.chat_list_window.timer.start(1000)
+        self.main_window.chat_list_window.chat_list.clear()
         self.main_window.chat_list_window.set_chats(chats)
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window)
 

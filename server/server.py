@@ -145,19 +145,6 @@ def send_message():
         })
         # Da aggiungere la verifica che il receiver sia registrato
 
-        # Add +1 to the number of pending messages of the receiver
-        user = keys_collection.find_one({"username": receiver})
-        if user:
-            # Get the number of pending messages, if it doesn't exist set it to 0
-            pending_messages = user.get("pending_messages", 0)
-            keys_collection.update_one(
-                {"username": receiver},
-                {"$set": {"pending_messages": pending_messages + 1}}
-            )
-        else:
-            return jsonify({'error': 'Receiver not found!'}), 400
-    
-
         return jsonify({'message': 'Message sent successfully!'}), 200
 
     except KeyError as e:
