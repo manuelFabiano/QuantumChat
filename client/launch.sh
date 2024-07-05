@@ -1,2 +1,5 @@
-python3 gui.py &
-python3 gui.py &
+#!/bin/bash
+
+for i in $(seq $1); do
+  python3 gui.py &
+done
