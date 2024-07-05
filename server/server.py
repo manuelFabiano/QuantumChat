@@ -31,11 +31,11 @@ def login():
             "otpp":len(user["public_keys"]["public_one_time_pqkem_prekeys"])
             }
             # We use the id (which is also the timestamp of the creation of the key) to check if the key expired
-            if time.time_ns() - user["public_keys"]["public_prekey"]["id"] > 30000000000: # 7 days: 604800000000000 ns
+            if time.time_ns() - user["public_keys"]["public_prekey"]["id"] > 604800000000000: # 7 days: 604800000000000 ns
                 document["prekey_expired"] = 1
             else:
                 document["prekey_expired"] = 0
-            if time.time_ns() - user["public_keys"]["public_last_resort_pqkem_key"]["id"] > 30000000000:
+            if time.time_ns() - user["public_keys"]["public_last_resort_pqkem_key"]["id"] > 604800000000000:
                 document["last_resort_expired"] = 1     
             else:
                 document["last_resort_expired"] = 0                 
