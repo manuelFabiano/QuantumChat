@@ -21,6 +21,11 @@ from ge25519 import ge25519, ge25519_p3
 from datetime import datetime
 
 
+class TerminalColors:
+    WARNING = '\033[93m'  # Yellow color for warning
+    END = '\033[0m'       # Reset to default color
+
+
 
 #Server URL
 SERVER = "http://localhost:5001"
@@ -113,10 +118,11 @@ def X25519_private_key_decoder(data):
     return X25519PrivateKey.from_private_bytes(private_key_bytes)
     
 #read from json file
-def read_keys():
-      with open("keys.json","r") as file:
-          data = json.load(file,object_hook=ed25519_private_key_decoder)
-          print(data["private_identity_key"])
+def read_keys(username):
+    db = connect_local_db(username)
+    keys_collection = db.keys
+    data = keys_collection.find_one({"username":username})
+    return data["private_keys"]
 
 
 #save keys to mongoDB
@@ -169,7 +175,6 @@ def generate_keys():
 
     private_one_time_pqkem_prekeys = list()
     public_one_time_pqkem_prekeys = list()
-    sign_on_one_time_pqkem_prekeys = list()
 
     for i in range(5):
         id = time.time_ns()
@@ -193,13 +198,53 @@ def generate_keys():
         "public_one_time_prekeys" : public_one_time_prekeys,
         "public_last_resort_pqkem_key" : public_last_resort_pqkem_kyber_key,
         "public_one_time_pqkem_prekeys" : public_one_time_pqkem_prekeys,
-        "sign_on_one_time_pqkem_prekeys" : sign_on_one_time_pqkem_prekeys
     }
 
     # E' necessario restituire anche le chiavi private?
     return (private_keys,public_keys)
     
 
+def generate_one_time(username):
+    db = connect_local_db(username)
+    keys_collection = db.keys
+    data = keys_collection.find_one({"username":username})["private_keys"]["private_identity_key"]
+    private_identity_key_Ed = ed25519_private_key_decoder(data)
+    private_one_time_prekeys = list()
+    public_one_time_prekeys = list()
+    for i in range(5):
+        id = time.time_ns()
+        private_one_time_prekeys.append({"key":X25519PrivateKey.generate(), "id": id})
+        public_one_time_prekeys.append({"key":public_serialization(private_one_time_prekeys[i]["key"].public_key()), "id": id})
+        #Serialize
+        private_one_time_prekeys[-1]["key"] = json.dumps(private_one_time_prekeys[-1]["key"], cls=PrivateKeyEncoder, indent=4)
+    private_one_time_pqkem_prekeys = list()
+    public_one_time_pqkem_prekeys = list()
+
+    for i in range(5):
+        id = time.time_ns()
+        pqkem = kyber.Kyber512.keygen()
+        public_one_time_pqkem_prekeys.append({"key":pqkem[0].hex(), "id": id, "sign":private_identity_key_Ed.sign(pqkem[0]).hex()})
+        private_one_time_pqkem_prekeys.append({"key":pqkem[1].hex(), "id": id})
+    
+    #update locally
+    keys_collection.update_one(
+        {'username': username},
+        {'$push': {'private_keys.private_one_time_prekeys':{"$each":private_one_time_prekeys}, 'private_keys.private_one_time_pqkem_prekeys':{"$each" : private_one_time_pqkem_prekeys}}})
+
+    print(TerminalColors.WARNING + "Keys inserted locally" + TerminalColors.END)
+    #update online
+    payload = {
+        "username": username,
+        "otp": public_one_time_prekeys,
+        "otpp": public_one_time_pqkem_prekeys
+    }
+    payload = json.dumps(payload, indent=4)
+    url = SERVER + "/new_keys"
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    if response.status_code == 200:
+        print(TerminalColors.WARNING + "New keys uploaded!" + TerminalColors.END)
+    else:
+        print(TerminalColors.WARNING + "Warning: Error inserting new keys" + TerminalColors.END)
 
 
 def register(username, password,public_keys):
@@ -222,6 +267,9 @@ def login(username,password):
      }
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    if (int(response.json()["otp"])) < 2:
+        print(TerminalColors.WARNING + "Warning: few one time keys remaining. Generating new ones" + TerminalColors.END)
+        generate_one_time(username)
     return response
 
 
@@ -585,7 +633,7 @@ def main():
             password = password.hex()
             keys = generate_keys()
 
-            #Register the user on server with his private keys
+            #Register the user on server with his public keys
             response = register(username, password, keys[1])
             db = connect_local_db(username)
             keys_collection = db.keys

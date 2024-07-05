@@ -23,9 +23,14 @@ def login():
         username = data['username']
         password = data['password']
 
-         #Check if the username and password are correct
-        if keys_collection.find_one({'username': username, 'password': password}):
-             return jsonify({'message': 'Successfully login!'}), 200
+        #Check if the username and password are correct and return number of one-time prekeys
+        user = keys_collection.find_one({'username': username, 'password': password})
+        if user:
+            document = {
+            "otp": len(user["public_keys"]["public_one_time_prekeys"]),
+            "otpp":len(user["public_keys"]["public_one_time_pqkem_prekeys"])
+            }
+            return jsonify(document),200
         else:
             return jsonify({'error': 'Wrong username and/or password'}), 400
 
@@ -144,6 +149,7 @@ def send_message():
             "timestamp": timestamp
         })
         # Da aggiungere la verifica che il receiver sia registrato
+    
 
         return jsonify({'message': 'Message sent successfully!'}), 200
 
@@ -170,6 +176,26 @@ def receive_messages():
 
     except KeyError as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
+
+
+#Function to insert new one time prekeys
+@app.route('/new_keys', methods=['POST'])
+def insert_new_keys():
+    data = request.get_json()
+    username = data["username"]
+    public_one_time_prekeys = data["otp"]
+    public_one_time_pqkem_prekeys = data["otpp"]
+
+    try:
+        keys_collection.update_one(
+        {'username': username},
+        {'$push': {'public_keys.public_one_time_prekeys':{"$each":public_one_time_prekeys}, 'public_keys.public_one_time_pqkem_prekeys':{"$each" : public_one_time_pqkem_prekeys}}})
+        
+        return jsonify({'message': 'Successfully inserted new keys!'}), 200
+
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
+
 
 if __name__ == '__main__':
     print('Server running on port 5000')
