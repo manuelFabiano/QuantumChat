@@ -373,10 +373,10 @@ def X3DH_KDF(DHs):
     )
     return hkdf.derive(km)
     
-def send_initial_message(username,destination, keys_collection, chats_collection):
+def send_initial_message(username,destination, keys_collection, chats_collection, type, key_group = None, group_name = None):
     key_bundle = fetch_key_bundle(destination)
     if key_bundle.status_code != 200:
-        print("User not found")
+        print(f"User {destination} not found")
         return
     key_bundle = key_bundle.json()
 
@@ -434,17 +434,22 @@ def send_initial_message(username,destination, keys_collection, chats_collection
             "public_prekey_id" : key_bundle["public_prekey"]["id"],
             "pqkem_id" : pqkem["id"],
             "curve_one_time_id" : curve_one_time_id,
-            "initial_message": nonce.hex() + initial_message_ciphertext # Already in hex
+            "initial_message": nonce.hex() + initial_message_ciphertext, # Already in hex
         }
+        if(type=="INIT_GROUP"):
+            initial_message["key_group"] = aesgcm.encrypt(nonce, key_group, ad).hex()
+    
         
         # Send initial message to the other user
         payload = {
-            "type" : "INIT",
+            "type" : type,
             "sender": username,
             "receiver": destination,
             "message": initial_message,
             "timestamp": time.time()
         }
+        if(type=="INIT_GROUP"):
+            payload["group_name"] = group_name
 
         payload1 = json.dumps(payload, indent=4)
         url = SERVER + "/send_message"
@@ -457,15 +462,25 @@ def send_initial_message(username,destination, keys_collection, chats_collection
         # Save INIT message in the local database
         chats_collection.insert_one(payload)
 
-        # Save secret key and associated data in the local database
-        keys_collection.update_one(
-        {'username': username},
-        {'$set': {f"{destination}": {
-            "SK" : sk.hex(),
-            "AD" : ad.hex()
-        }}}  # Create a field for the receiver of chat containing SK and AD
-        )
-        return (sk,ad)
+        if(type=="INIT"):
+            # Save secret key and associated data in the local database
+            keys_collection.update_one(
+            {'username': username},
+            {'$set': {f"{destination}": {
+                "SK" : sk.hex(),
+                "AD" : ad.hex()
+            }}}  # Create a field for the receiver of chat containing SK and AD
+            )
+            return (sk,ad)
+        else:
+            keys_collection.update_one(
+            {'username': username},
+            {'$set': {f"{group_name}": {
+                "SK" : key_group.hex(),
+                "AD" : None
+            }}}  # Create a field for the receiver of chat containing SK and AD
+            )
+            return (sk,ad)
     else:
         print("Signature check failed")
         print("Aborting chat...")
@@ -533,13 +548,24 @@ def handle_initial_message(msg, keys_collection):
     if decrypted_initial_message.decode() == "**INITIAL MESSAGE**":
         #print(f"Initial message from {msg['sender']} correctly received")
         # Save secret key and associated data in the local database
-        keys_collection.update_one(
-        {'username': msg["receiver"]},
-        {'$set': {f"{msg['sender']}": {
-            "SK" : sk.hex(),
-            "AD" : ad
-        }}} 
-        )
+        if msg["type"] == "INIT":
+            keys_collection.update_one(
+            {'username': msg["receiver"]},
+            {'$set': {f"{msg['sender']}": {
+                "SK" : sk.hex(),
+                "AD" : ad
+            }}} 
+            )
+        else:
+            group_key =  aesgcm.decrypt(nonce, bytes.fromhex(msg["message"]["key_group"]),bytes.fromhex(ad))
+            keys_collection.update_one(
+            {'username': msg["receiver"]},
+            {'$set': {f"{msg['group_name']}": {
+                "SK" : group_key.hex(),
+                "AD" : None
+            }}} 
+            )
+
     else:
         print("Initial message failed")
         print("Aborting chat...")
@@ -592,7 +618,7 @@ def download_new_messages(username, db):
     payload = json.dumps(payload, indent=4)
     request = requests.post(SERVER + "/receive_messages",payload, headers = {"Content-Type": "application/json", "Accept": "application/json"})
     for msg in request.json()["messages"]:
-        if msg["type"] == "INIT":
+        if msg["type"] == "INIT" or msg["type"] == "INIT_GROUP":
             handle_initial_message(msg,db.keys)
         #Save on local database
         db.chats.insert_one(msg)
@@ -607,6 +633,20 @@ def get_active_chats(username, chats_collection):
         else:
             list.append(message["receiver"])
     return list
+
+def create_group(username, name, members,keys_collection, chats_collection):
+    group_key = secrets.token_bytes(32)
+    for member in members:
+        send_initial_message(username,member, keys_collection, chats_collection, 'INIT_GROUP', group_key, name)
+
+    
+
+def get_active_groups(username, chats_collection):
+    result = set()
+    groups = chats_collection.find({"$or":[{"receiver": username,"type":"INIT_GROUP"}, {"sender": username,"type":"INIT_GROUP"}]})
+    for group in groups:
+        result.add(group["group_name"])
+    return result
 
 
 def load_chat(user1, user2, chats_collection):
@@ -662,12 +702,20 @@ def menu_user(username):
         if choice == "1":
             receiver = input("Type the username you want to chat with:")
             print("Starting chat...")
-            sk,ad = send_initial_message(username,receiver, keys_collection)
-            send_message(b"Hello",username,receiver, chats_collection)
+            send_initial_message(username,receiver, keys_collection,"INIT")
         else:
             for user in chats:
                 if choice == user:
                     show_chat(username,choice)
+    elif choice == "2":
+        print("Groups")   
+        #create_group(username,"Cazzi in culo",["Alice","Suca"],keys_collection,chats_collection)
+        
+        download_new_messages(username,db)
+        groups = get_active_groups(username,chats_collection)
+        for group in groups:
+            print(group)
+            
         
         
 def main():

@@ -148,17 +148,27 @@ def send_message():
         message = data["message"]
         timestamp = data["timestamp"]
 
-        #Save message on MongoDB
-        chats_collection.insert_one({
-            "type" : type,
-            "received" : 0,
-            "sender": sender,
-            "receiver": receiver,
-            "message": message,
-            "timestamp": timestamp
-        })
-        # Da aggiungere la verifica che il receiver sia registrato
-    
+        if(type=="INIT"):
+            #Save message on MongoDB
+            chats_collection.insert_one({
+                "type" : type,
+                "received" : 0,
+                "sender": sender,
+                "receiver": receiver,
+                "message": message,
+                "timestamp": timestamp
+            })
+        else:
+            #Save message on MongoDB
+            chats_collection.insert_one({
+                "type" : type,
+                "received" : 0,
+                "sender": sender,
+                "receiver": receiver,
+                "message": message,
+                "timestamp": timestamp,
+                "group_name" : data["group_name"]
+            })
 
         return jsonify({'message': 'Message sent successfully!'}), 200
 
