@@ -355,9 +355,8 @@ def signature_check(key_bundle):
 
         if(key_bundle["public_one_time_pqkem_prekey"] != None):
             public_identity_key.verify(bytes.fromhex(key_bundle["public_one_time_pqkem_prekey"]["sign"]), bytes.fromhex(key_bundle["public_one_time_pqkem_prekey"]["key"]))
-        
         else:
-            public_identity_key.verify(bytes.fromhex(key_bundle["public_one_time_pqkem_prekey"]["sign"]), bytes.fromhex(key_bundle["public_last_resort_pqkem_key"]["key"]))
+            public_identity_key.verify(bytes.fromhex(key_bundle["public_last_resort_pqkem_key"]["sign"]), bytes.fromhex(key_bundle["public_last_resort_pqkem_key"]["key"]))
         return True
     except InvalidSignature:
         return False
@@ -497,7 +496,9 @@ def handle_initial_message(msg, keys_collection):
           if key["id"] == msg["message"]["curve_one_time_id"]:
               opk = X25519_private_key_decoder(key["key"])
               break
-    
+    else:
+        opk = None
+
     pqpk = None
     for key in local_keys["private_last_resort_pqkem_key"]:
         if key["id"] == msg["message"]["pqkem_id"]:
@@ -515,10 +516,13 @@ def handle_initial_message(msg, keys_collection):
     DH2 = private_key_X.exchange(ephemeral_key)
     # DH3(SPKb,EKa)
     DH3 = spk.exchange(ephemeral_key)
-    # DH4(OPKb,EKa)
-    DH4 = opk.exchange(ephemeral_key)
-    sk = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + SS)
-    #TODO: deletes the DH values and SS values.
+    if opk != None:
+        # DH4(OPKb,EKa)
+        DH4 = opk.exchange(ephemeral_key)
+        sk = X3DH_KDF(DH1 + DH2 + DH3 + DH4 + SS)
+    else:
+        sk = X3DH_KDF(DH1 + DH2 + DH3 + SS)
+        
     # Associated data:
     ad = (public_serialization(public_identity_key) + public_serialization(private_key_X.public_key()))
     aesgcm = AESGCM(sk)

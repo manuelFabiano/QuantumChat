@@ -1,4 +1,6 @@
+from datetime import datetime
 import sys
+import time
 from PyQt5 import QtCore
 from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QMessageBox, QStackedWidget, QGraphicsDropShadowEffect, QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem, QHBoxLayout, QTextEdit
 from PyQt5.QtCore import Qt, QTimer
@@ -210,7 +212,7 @@ class LoginWindow(QWidget):
         background-color: #eb3636;
     }
         """)
-        self.back_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu))
+        self.back_button.clicked.connect(self.back)
         effect2 = QGraphicsDropShadowEffect()
         effect2.setOffset(3, 3)
         effect2.setBlurRadius(30)
@@ -222,6 +224,12 @@ class LoginWindow(QWidget):
         self.layout.addItem(self.spacer_bottom)
         
         self.setLayout(self.layout)
+
+    def back(self):
+        self.username_input.clear()
+        self.password_input.clear()
+        self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu)
+
     def login(self):
         username = self.username_input.text()
         password = self.password_input.text()
@@ -233,6 +241,8 @@ class LoginWindow(QWidget):
         
         response = login(username, password_hashed)
         if response.status_code == 200:
+            self.username_input.clear()
+            self.password_input.clear()
             self.main_window.user_menu.username = username
             self.main_window.user_menu.set_username(username)
             # After the login, connect to local db
@@ -320,7 +330,7 @@ class RegisterWindow(QWidget):
         background-color: #eb3636;
     }
         """)
-        self.back_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu))
+        self.back_button.clicked.connect(self.back)
         effect2 = QGraphicsDropShadowEffect()
         effect2.setOffset(3, 3)
         effect2.setBlurRadius(30)
@@ -333,6 +343,10 @@ class RegisterWindow(QWidget):
         
         self.setLayout(self.layout)
 
+    def back(self):
+        self.username_input.clear()
+        self.password_input.clear()
+        self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu)
     # Function for register logic
     def register(self):
         username = self.username_input.text()
@@ -347,6 +361,8 @@ class RegisterWindow(QWidget):
         
         response = register(username, password_hashed, keys[1])
         if response.status_code == 200:
+            self.username_input.clear()
+            self.password_input.clear()
             # After the login, connect to local db
             self.main_window.user_menu.db = connect_local_db(username)
             # Save the keys in the local db
@@ -434,6 +450,7 @@ class UserMenu(QWidget):
         download_new_messages(self.username, self.main_window.user_menu.db)
         # Get the list of active chats
         chats = get_active_chats(self.username, self.main_window.user_menu.db.chats)
+        self.main_window.chat_list_window.search_input.clear()
         self.main_window.chat_list_window.chat_list.clear()
         self.main_window.chat_list_window.set_chats(chats)
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window)
@@ -624,7 +641,7 @@ class ChatWindow(QWidget):
             self.chat_display.clear()
             for message in messages:
                 message = decrypt_message(message, self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.keys)
-                self.add_message(message["sender"], message["message"].decode())
+                self.add_message(message["sender"], message["message"].decode(), message["timestamp"])
             self.chat_length = len(messages)
 
     def apply_style(self):
@@ -656,16 +673,20 @@ class ChatWindow(QWidget):
         message = self.message_input.text().strip()
         if message:
             send_message(bytes(message, 'utf-8'),self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.chats, self.main_window.user_menu.db.keys)
-            self.add_message(self.main_window.user_menu.username, message)
+            self.add_message(self.main_window.user_menu.username, message, time.time())
             self.message_input.clear()
 
-    def add_message(self, sender, message):
+    def add_message(self, sender, message, timestamp):
         if sender == self.main_window.user_menu.username:
             alignment = Qt.AlignRight
         else:
             alignment = Qt.AlignLeft
-
-        self.chat_display.append(f"<p style='text-align: {alignment};'><b>{sender}:</b> {message}</p>")
+        
+        timestamp_obj = datetime.fromtimestamp(timestamp)
+        # Formattare il timestamp
+        formatted_timestamp = timestamp_obj.strftime('%Y-%m-%d %H:%M')
+        self.chat_display.append(f"<p style='text-align: {alignment};'><b>{sender}:</b> {message}&nbsp;"
+                                 f"<span style='float: right; font-size: 10px; color: gray;'>{formatted_timestamp}</span></p>")
 
     def go_back(self):
         self.timer.stop()
