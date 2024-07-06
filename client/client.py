@@ -426,7 +426,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
         initial_message_plaintext = b"**INITIAL MESSAGE**"
         aesgcm = AESGCM(sk)
         nonce = secrets.token_bytes(32)
-        initial_message_ciphertext = (aesgcm.encrypt(nonce, nonce+initial_message_plaintext, ad)).hex()
+        initial_message_ciphertext = (aesgcm.encrypt(nonce, initial_message_plaintext, ad)).hex()
         
         initial_message = {
             "identity_key" : public_identity_key_user.hex(),
@@ -435,7 +435,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
             "public_prekey_id" : key_bundle["public_prekey"]["id"],
             "pqkem_id" : pqkem["id"],
             "curve_one_time_id" : curve_one_time_id,
-            "initial_message": initial_message_ciphertext # Already in hex
+            "initial_message": nonce.hex() + initial_message_ciphertext # Already in hex
         }
         
         # Send initial message to the other user
@@ -522,8 +522,9 @@ def handle_initial_message(msg, keys_collection):
     # Associated data:
     ad = (public_serialization(public_identity_key) + public_serialization(private_key_X.public_key()))
     aesgcm = AESGCM(sk)
-    nonce = b'\x00' * 12
-    encrypted_text = bytes.fromhex(msg["message"]["initial_message"])
+    # The nonce is in the first 32 bytes of the ciphertext
+    nonce = bytes.fromhex(msg["message"]["initial_message"])[:32]
+    encrypted_text = bytes.fromhex(msg["message"]["initial_message"])[32:]
     decrypted_initial_message = aesgcm.decrypt(nonce, encrypted_text,bytes.fromhex(ad))
     if decrypted_initial_message.decode() == "**INITIAL MESSAGE**":
         #print(f"Initial message from {msg['sender']} correctly received")
@@ -542,19 +543,20 @@ def handle_initial_message(msg, keys_collection):
 
 
 
-def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce = b'\x00' * 12):
+def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce_dim = 32):
     # Get secret key and associated data from the local database
     local_keys = keys_collection.find_one({"username": sender})
     sk = bytes.fromhex(local_keys[receiver]["SK"])
     ad = bytes.fromhex(local_keys[receiver]["AD"])
     aesgcm = AESGCM(sk)
+    nonce = secrets.token_bytes(nonce_dim)
     encrypted_message = aesgcm.encrypt(nonce, msg, ad).hex()
     # Send message to the other user
     payload = {
         "type" : "MSG",
         "sender": sender,
         "receiver": receiver,
-        "message": encrypted_message,
+        "message": nonce.hex() + encrypted_message,
         "timestamp": time.time()
     }
 
@@ -571,12 +573,14 @@ def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce =
         print(response.text)
         return
 
-def decrypt_message(msg,user,other_user,keys_collection, nonce = b'\x00' * 12):
+def decrypt_message(msg,user,other_user,keys_collection, nonce_dim = 32):
     local_keys = keys_collection.find_one({"username": user})
     sk = bytes.fromhex(local_keys[other_user]["SK"])
     ad = bytes.fromhex(local_keys[other_user]["AD"])
     aesgcm = AESGCM(sk)
-    msg["message"] = aesgcm.decrypt(nonce, bytes.fromhex(msg["message"]),ad)
+    nonce = bytes.fromhex(msg["message"])[:nonce_dim]
+    message = bytes.fromhex(msg["message"])[nonce_dim:]
+    msg["message"] = aesgcm.decrypt(nonce, message,ad)
     return msg
 
 def download_new_messages(username, db):

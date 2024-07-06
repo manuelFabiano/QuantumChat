@@ -434,11 +434,10 @@ class UserMenu(QWidget):
         download_new_messages(self.username, self.main_window.user_menu.db)
         # Get the list of active chats
         chats = get_active_chats(self.username, self.main_window.user_menu.db.chats)
-        self.main_window.chat_list_window.timer.start(1000)
         self.main_window.chat_list_window.chat_list.clear()
         self.main_window.chat_list_window.set_chats(chats)
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window)
-
+        self.main_window.chat_list_window.timer.start(1000)
     def show_groups(self):
         QMessageBox.information(self, "Groups", "Displaying Groups...")
 
@@ -546,8 +545,9 @@ class ChatListWindow(QWidget):
         chat_user = item.text()
         print(f"Opening chat with {chat_user}")
         self.main_window.chat_window.set_chat_user(chat_user)
-        self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
         self.main_window.chat_window.timer.start(1000)
+        self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+        
     
     def back(self):
         self.timer.stop()
@@ -563,6 +563,8 @@ class ChatWindow(QWidget):
 
     def set_chat_user(self, chat_user):
         self.chat_user = chat_user
+        self.chat_length = 0
+        self.chat_display.clear()
         self.setWindowTitle(self.chat_user)
         self.user_label.setText(self.chat_user)
     
