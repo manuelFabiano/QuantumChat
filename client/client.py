@@ -187,9 +187,9 @@ def generate_keys():
     # Json Data structure containing private keys and user informations
     private_keys = {
         "private_identity_key": private_identity_key_Ed,
-        "private_prekey": private_prekey,
+        "private_prekey": [private_prekey],
         "private_one_time_prekeys" : private_one_time_prekeys,
-        "private_last_resort_pqkem_key" : private_last_resort_pqkem_key,
+        "private_last_resort_pqkem_key" : [private_last_resort_pqkem_key],
         "private_one_time_pqkem_prekeys" : private_one_time_pqkem_prekeys
     }
 
@@ -268,11 +268,80 @@ def login(username,password):
      }
     payload = json.dumps(payload, indent=4)
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
-    if (int(response.json()["otp"])) < 2:
-        print(TerminalColors.WARNING + "Warning: few one time keys remaining. Generating new ones" + TerminalColors.END)
-        generate_one_time(username)
+    print(response.json())
+    if response.status_code == 200:
+        if (int(response.json()["otp"])) < 2:
+            print(TerminalColors.WARNING + "Warning: few one time keys remaining. Generating new ones" + TerminalColors.END)
+            generate_one_time(username)
+        if response.json()["prekey_expired"]:
+            print(TerminalColors.WARNING + "Warning: curve prekey expired. Generating new one" + TerminalColors.END)
+            generate_prekey(username)
+        if response.json()["last_resort_expired"]:
+            print(TerminalColors.WARNING + "Warning: pqkem prekey expired. Generating new one" + TerminalColors.END)
+            generate_last_resort(username)
     return response
 
+def generate_last_resort(username):
+    db = connect_local_db(username)
+    keys_collection = db.keys
+    data = keys_collection.find_one({"username":username})["private_keys"]["private_identity_key"]
+    private_identity_key_Ed = ed25519_private_key_decoder(data)
+    id = time.time_ns()
+    pqkem = kyber.Kyber512.keygen()
+    private_last_resort_pqkem_key = {"key":pqkem[1], "id": id}
+    public_last_resort_pqkem_key = {"key":pqkem[0].hex(), "id": id, "sign":private_identity_key_Ed.sign(pqkem[0]).hex()}
+
+    #update locally
+    keys_collection.update_one(
+        {'username': username},
+        {'$push': {'private_keys.private_last_resort_pqkem_key': private_last_resort_pqkem_key}})
+    print(TerminalColors.WARNING + "New pqkem last resort key inserted locally" + TerminalColors.END)
+
+    #update online
+    payload = {
+        "username": username,
+        "public_last_resort_pqkem_key": public_last_resort_pqkem_key
+    }
+    payload = json.dumps(payload, indent=4)
+    url = SERVER + "/new_keys"
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    if response.status_code == 200:
+        print(TerminalColors.WARNING + "New last resort key uploaded!" + TerminalColors.END)
+    else:
+        print(TerminalColors.WARNING + "Warning: Error inserting new last resort key" + TerminalColors.END)
+
+def generate_prekey(username):
+    db = connect_local_db(username)
+    keys_collection = db.keys
+    data = keys_collection.find_one({"username":username})["private_keys"]["private_identity_key"]
+    private_identity_key_Ed = ed25519_private_key_decoder(data)
+
+    id = time.time_ns()
+    private_prekey = {"key": X25519PrivateKey.generate(), "id": id}
+    public_prekey = {"key":public_serialization(private_prekey["key"].public_key()), "id" :id}
+    public_prekey["sign"] = private_identity_key_Ed.sign(bytes.fromhex(public_prekey["key"])).hex()
+
+    #update locally
+    private_prekey["key"] = json.dumps(private_prekey["key"], cls=PrivateKeyEncoder, indent=4)
+    keys_collection.update_one(
+        {'username': username},
+        {'$push': {'private_keys.private_prekey': private_prekey}})
+
+    print(TerminalColors.WARNING + "New curve prekey inserted locally" + TerminalColors.END)
+
+    #update online
+    payload = {
+        "username": username,
+        "public_prekey": public_prekey
+    }
+    payload = json.dumps(payload, indent=4)
+    url = SERVER + "/new_keys"
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    if response.status_code == 200:
+        print(TerminalColors.WARNING + "New curve prekey uploaded!" + TerminalColors.END)
+    else:
+        print(TerminalColors.WARNING + "Warning: Error inserting new curve prekey" + TerminalColors.END)
+    
 
 def fetch_key_bundle(username):
     url = f"{SERVER}/fetch_prekey_bundle/{username}"
@@ -403,10 +472,6 @@ def send_initial_message(username,destination, keys_collection, chats_collection
         print("Aborting chat...")
         return
 
-
-
-
-
 def handle_initial_message(msg, keys_collection):
     identity_key = msg["message"]["identity_key"]
     ephemeral_key = msg["message"]["ephemeral_key"]
@@ -420,17 +485,24 @@ def handle_initial_message(msg, keys_collection):
     local_keys = keys_collection.find_one({"username":msg["receiver"]})["private_keys"]
     #private_key_X
     private_key_X = private_ed_to_x(bytes.fromhex(local_keys["private_identity_key"]))
-    ##Dovrebbe aggiornare la prekey ogni tanto, e quindi bisogna considerare l'id
-    spk = X25519_private_key_decoder(local_keys["private_prekey"]["key"])  #Ce n'è solo una, quindi è inutile che vado a cercarla
+
+    for key in local_keys["private_prekey"]:
+        if key["id"] == msg["message"]["public_prekey_id"]:
+            print(key["key"])
+            spk = X25519_private_key_decoder(key["key"])
+            break
+
     if msg["message"]["curve_one_time_id"] != None:
       for key in local_keys["private_one_time_prekeys"]:
           if key["id"] == msg["message"]["curve_one_time_id"]:
               opk = X25519_private_key_decoder(key["key"])
               break
-
-    if local_keys["private_last_resort_pqkem_key"]["id"] == msg["message"]["pqkem_id"]:
-        pqpk = bytes.fromhex(local_keys["private_last_resort_pqkem_key"]["key"])
-    else:
+    
+    pqpk = None
+    for key in local_keys["private_last_resort_pqkem_key"]:
+        if key["id"] == msg["message"]["pqkem_id"]:
+            pqpk = bytes.fromhex(key["key"])
+    if pqpk == None:
         for key in local_keys["private_one_time_pqkem_prekeys"]:
           if key["id"] == msg["message"]["pqkem_id"]:
               pqpk = bytes.fromhex(key["key"])

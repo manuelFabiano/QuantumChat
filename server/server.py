@@ -30,6 +30,15 @@ def login():
             "otp": len(user["public_keys"]["public_one_time_prekeys"]),
             "otpp":len(user["public_keys"]["public_one_time_pqkem_prekeys"])
             }
+            # We use the id (which is also the timestamp of the creation of the key) to check if the key expired
+            if time.time_ns() - user["public_keys"]["public_prekey"]["id"] > 604800000000000: # 7 days: 604800000000000 ns
+                document["prekey_expired"] = 1
+            else:
+                document["prekey_expired"] = 0
+            if time.time_ns() - user["public_keys"]["public_last_resort_pqkem_key"]["id"] > 604800000000000:
+                document["last_resort_expired"] = 1     
+            else:
+                document["last_resort_expired"] = 0                 
             return jsonify(document),200
         else:
             return jsonify({'error': 'Wrong username and/or password'}), 400
@@ -183,16 +192,27 @@ def receive_messages():
 def insert_new_keys():
     data = request.get_json()
     username = data["username"]
-    public_one_time_prekeys = data["otp"]
-    public_one_time_pqkem_prekeys = data["otpp"]
-
+    
     try:
-        keys_collection.update_one(
-        {'username': username},
-        {'$push': {'public_keys.public_one_time_prekeys':{"$each":public_one_time_prekeys}, 'public_keys.public_one_time_pqkem_prekeys':{"$each" : public_one_time_pqkem_prekeys}}})
-        
+        if "otp" in data:
+            public_one_time_prekeys = data["otp"]
+            public_one_time_pqkem_prekeys = data["otpp"]
+            keys_collection.update_one(
+            {'username': username},
+            {'$push': {'public_keys.public_one_time_prekeys':{"$each":public_one_time_prekeys}, 'public_keys.public_one_time_pqkem_prekeys':{"$each" : public_one_time_pqkem_prekeys}}})
+        elif "public_prekey" in data:
+            public_prekey = data["public_prekey"]
+            keys_collection.update_one(
+            {'username': username},
+            {'$set': {'public_keys.public_prekey': public_prekey}})
+        elif "public_last_resort_pqkem_key" in data:
+            public_last_resort_pqkem_key = data["public_last_resort_pqkem_key"]
+            keys_collection.update_one(
+            {'username': username},
+            {'$set': {'public_keys.public_last_resort_pqkem_key': public_last_resort_pqkem_key}})
+        else:
+            return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
         return jsonify({'message': 'Successfully inserted new keys!'}), 200
-
     except KeyError as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
