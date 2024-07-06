@@ -19,6 +19,7 @@ from pymongo import MongoClient, ASCENDING
 from fe25519 import fe25519
 from ge25519 import ge25519, ge25519_p3
 from datetime import datetime
+import secrets
 
 
 class TerminalColors:
@@ -355,8 +356,8 @@ def send_initial_message(username,destination, keys_collection, chats_collection
 
         initial_message_plaintext = b"**INITIAL MESSAGE**"
         aesgcm = AESGCM(sk)
-        nonce = b'\x00' * 12
-        initial_message_ciphertext = (aesgcm.encrypt(nonce, initial_message_plaintext, ad)).hex()
+        nonce = secrets.token_bytes(32)
+        initial_message_ciphertext = (aesgcm.encrypt(nonce, nonce+initial_message_plaintext, ad)).hex()
         
         initial_message = {
             "identity_key" : public_identity_key_user.hex(),
