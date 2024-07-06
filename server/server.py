@@ -148,17 +148,7 @@ def send_message():
         message = data["message"]
         timestamp = data["timestamp"]
 
-        if(type=="INIT"):
-            #Save message on MongoDB
-            chats_collection.insert_one({
-                "type" : type,
-                "received" : 0,
-                "sender": sender,
-                "receiver": receiver,
-                "message": message,
-                "timestamp": timestamp
-            })
-        else:
+        if(type=="INIT_GROUP"):
             #Save message on MongoDB
             chats_collection.insert_one({
                 "type" : type,
@@ -169,7 +159,16 @@ def send_message():
                 "timestamp": timestamp,
                 "group_name" : data["group_name"]
             })
-
+        else:
+            #Save message on MongoDB
+            chats_collection.insert_one({
+                "type" : type,
+                "received" : 0,
+                "sender": sender,
+                "receiver": receiver,
+                "message": message,
+                "timestamp": timestamp
+            })
         return jsonify({'message': 'Message sent successfully!'}), 200
 
     except KeyError as e:
@@ -198,15 +197,17 @@ def receive_messages():
 
 # Function that fetch the messages from user "sender" to user "receiver"
 @app.route('/receive_group_messages', methods=['POST'])
-def receive_messages():
+def receive_group_messages():
     data = request.get_json()
     try:
         username = data["username"]
         groups = data["groups"]
         messages = []
         for group in groups:
-            new_messages = list(chats_collection.find({"receiver": username,f"received.{username}":{'$exists': False}}))
+            new_messages = list(chats_collection.find({"receiver": group,f"received.{username}":{'$exists': False}}))
             for message in new_messages:
+                if message["received"] == 0:
+                    message["received"] = dict()
                 message["received"][username] = 1
                 chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
                 if "_id" in message:

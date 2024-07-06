@@ -577,7 +577,10 @@ def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce_d
     # Get secret key and associated data from the local database
     local_keys = keys_collection.find_one({"username": sender})
     sk = bytes.fromhex(local_keys[receiver]["SK"])
-    ad = bytes.fromhex(local_keys[receiver]["AD"])
+    if local_keys[receiver]["AD"] != None:
+        ad = bytes.fromhex(local_keys[receiver]["AD"])
+    else:
+        ad = None
     aesgcm = AESGCM(sk)
     nonce = secrets.token_bytes(nonce_dim)
     encrypted_message = aesgcm.encrypt(nonce, msg, ad).hex()
@@ -709,14 +712,12 @@ def menu_user(username):
                     show_chat(username,choice)
     elif choice == "2":
         print("Groups")   
-        #create_group(username,"Cazzi in culo",["Alice","Suca"],keys_collection,chats_collection)
-        
+        #create_group(username,"Gruppo prova",["Alice","Bob"],keys_collection,chats_collection)
         download_new_messages(username,db)
-        groups = get_active_groups(username,chats_collection)
-        for group in groups:
-            print(group)
-            
-        
+        groups = list(get_active_groups(username,chats_collection))
+        send_message(b"Hello! How are you!",username, groups[0],chats_collection, keys_collection)
+        request = requests.post(SERVER + "/receive_group_messages", json.dumps({"username": username, "groups": groups}), headers = {"Content-Type": "application/json", "Accept": "application/json"})
+        print(request.json())
         
 def main():
     while 1:
