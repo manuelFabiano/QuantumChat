@@ -186,6 +186,30 @@ def receive_messages():
     except KeyError as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
+# Function that fetch the messages from user "sender" to user "receiver"
+@app.route('/receive_group_messages', methods=['POST'])
+def receive_messages():
+    data = request.get_json()
+    try:
+        username = data["username"]
+        groups = data["groups"]
+        messages = []
+        for group in groups:
+            new_messages = list(chats_collection.find({"receiver": username,f"received.{username}":{'$exists': False}}))
+            for message in new_messages:
+                message["received"][username] = 1
+                chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
+                if "_id" in message:
+                    del message["_id"]
+            messages.append(new_messages)
+        payload = {
+            "messages": messages
+        }
+        return jsonify(payload), 200
+
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
+
 
 #Function to insert new one time prekeys
 @app.route('/new_keys', methods=['POST'])
