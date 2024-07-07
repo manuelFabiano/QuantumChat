@@ -204,7 +204,7 @@ def receive_group_messages():
         groups = data["groups"]
         messages = []
         for group in groups:
-            new_messages = list(chats_collection.find({"receiver": group,f"received.{username}":{'$exists': False}}))
+            new_messages = list(chats_collection.find({"receiver": group,f"received.{username}":{'$exists': False}, "sender": {"$ne": username}}))
             for message in new_messages:
                 if message["received"] == 0:
                     message["received"] = dict()
@@ -212,7 +212,7 @@ def receive_group_messages():
                 chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
                 if "_id" in message:
                     del message["_id"]
-            messages.append(new_messages)
+            messages.extend(new_messages)
         payload = {
             "messages": messages
         }

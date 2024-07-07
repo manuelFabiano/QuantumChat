@@ -628,8 +628,7 @@ def download_new_messages(username, db):
             handle_initial_message(msg,db.keys)
         #Save on local database
         db.chats.insert_one(msg)
-
-    groups = get_active_groups(username,db.chats)
+    groups = list(get_active_groups(username,db.chats))
     request = requests.post(SERVER + "/receive_group_messages", json.dumps({"username": username, "groups": groups}), headers = {"Content-Type": "application/json", "Accept": "application/json"})
     for msg in request.json()["messages"]:
         #Save on local database

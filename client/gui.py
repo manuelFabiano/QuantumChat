@@ -2,13 +2,13 @@ from datetime import datetime
 import sys
 import time
 from PyQt5 import QtCore
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QMessageBox, QStackedWidget, QGraphicsDropShadowEffect, QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem, QHBoxLayout, QTextEdit
+from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton, QLineEdit, QMessageBox, QStackedWidget, QGraphicsDropShadowEffect, QSpacerItem, QSizePolicy, QListWidget, QListWidgetItem, QHBoxLayout, QTextEdit, QDialog
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap, QCursor
-
+import secrets
 from cryptography.hazmat.primitives import hashes
 
-from client import *
+from client import download_new_messages, login, register, generate_keys, get_active_chats, connect_local_db, export_keys, load_chat, send_message, send_initial_message, decrypt_message, get_active_groups, load_group
 
 
 class MainWindow(QMainWindow):
@@ -31,7 +31,7 @@ class MainWindow(QMainWindow):
         self.chat_list_window = ChatListWindow(self)
         self.chat_window = ChatWindow(self)
         self.group_list_window = GroupListWindow(self)
-        self.group_window = GroupWindow(self)
+    
         
 
         self.init_main_menu()
@@ -43,7 +43,6 @@ class MainWindow(QMainWindow):
         self.central_widget.addWidget(self.chat_list_window)
         self.central_widget.addWidget(self.chat_window)
         self.central_widget.addWidget(self.group_list_window)
-        self.central_widget.addWidget(self.group_window)
 
     def init_main_menu(self):
         layout = QVBoxLayout()
@@ -414,7 +413,7 @@ class UserMenu(QWidget):
         self.layout.addWidget(self.chats_button, alignment=Qt.AlignCenter)
         
         self.groups_button = QPushButton("Groups")
-        self.groups_button.clicked.connect(self.show_groups())
+        self.groups_button.clicked.connect(self.show_groups)
         self.groups_button.setStyleSheet("""
             QPushButton {
                 background-color: white;
@@ -590,10 +589,12 @@ class ChatWindow(QWidget):
         self.main_window = main_window
         self.chat_user = None
         self.chat_length = 0
+        self.chat_type = "DM"
         self.init_ui()
 
-    def set_chat_user(self, chat_user):
+    def set_chat_user(self, chat_user, chat_type="DM"):
         self.chat_user = chat_user
+        self.chat_type = chat_type
         self.chat_length = 0
         self.chat_display.clear()
         self.setWindowTitle(self.chat_user)
@@ -650,7 +651,11 @@ class ChatWindow(QWidget):
     
     def fetch_messages(self):
         download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
-        messages = load_chat(self.main_window.user_menu.username, self.chat_user ,self.main_window.user_menu.db.chats)
+        if self.chat_type == "DM":
+            messages = load_chat(self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.chats)
+        else:
+            messages = load_group(self.chat_user ,self.main_window.user_menu.db.chats)
+        
         if len(messages) > self.chat_length:
             self.chat_display.clear()
             for message in messages:
@@ -743,9 +748,7 @@ class GroupListWindow(QWidget):
         self.group_list = QListWidget(self)
         self.group_list.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
         layout.addWidget(self.group_list)
-        self.group_list = QListWidget(self)
-        self.group_list.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
-        layout.addWidget(self.group_list)
+        
     
         self.setLayout(layout)
         self.apply_style()
@@ -785,18 +788,21 @@ class GroupListWindow(QWidget):
         self.setStyleSheet(style)
 
     def new_group(self):
+        group_name = self.search_input.text().strip()
+        dialog = AddUserDialog(self.main_window.user_menu.username ,group_name, self.main_window.user_menu.db)
+        dialog.exec_()
+        """
         user = self.search_input.text().strip()
         if user != "":
             send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats)
             self.main_window.chat_window.set_chat_user(user)
             self.main_window.chat_window.timer.start(1000)
             self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
-
+        """
     def set_groups(self, groups):
         self.groups = groups
         self.display_groups(groups)
 
-    def fetch_groups(self):
     def fetch_groups(self):
         download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
         groups = list(get_active_groups(self.main_window.user_menu.username,self.main_window.user_menu.db.chats))
@@ -818,7 +824,7 @@ class GroupListWindow(QWidget):
         self.timer.stop()
         chat_user = item.text()
         print(f"Opening chat with {chat_user}")
-        self.main_window.chat_window.set_chat_user(chat_user)
+        self.main_window.chat_window.set_chat_user(chat_user, "GROUP")
         self.main_window.chat_window.timer.start(1000)
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
         
@@ -827,124 +833,59 @@ class GroupListWindow(QWidget):
         self.timer.stop()
         self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
 
-class GroupWindow(QWidget):
-    def __init__(self, main_window):
+class AddUserDialog(QDialog):
+    def __init__(self, username, group_name, db):
         super().__init__()
-        self.main_window = main_window
-        self.group = None
-        self.chat_length = 0
+        self.group_name = group_name
+        self.username = username
+        self.db = db
+        self.group_key = secrets.token_bytes(32)
         self.init_ui()
-
-    def set_group(self, group):
-        self.group = group
-        self.chat_length = 0
-        self.chat_display.clear()
-        self.setWindowTitle(self.group)
-        self.user_label.setText(self.group)
-    
+        
     def init_ui(self):
+        self.setWindowTitle('Add Users')
+
+        # Layout principale
         layout = QVBoxLayout()
-        layout.setContentsMargins(0, 5, 0, 5)
-        # Top bar with the username of the chat user
-        top_bar = QHBoxLayout()
-        back_button = QPushButton("<", self)
-        back_button.setFixedSize(30, 30)
-        back_button.clicked.connect(self.go_back)
-        top_bar.addWidget(back_button, alignment=Qt.AlignLeft)
-
-        self.user_label = QLabel(self.chat_user, self)
-        self.user_label.setAlignment(Qt.AlignCenter)
-        top_bar.addWidget(self.user_label)
         
-        top_bar.addStretch()
-        layout.addLayout(top_bar)
-
-        # Chat display area
-        self.chat_display = QTextEdit(self)
-        self.chat_display.setReadOnly(True)
-        # Set the size policy to expand horizontally and vertically
-        self.chat_display.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.chat_display.setStyleSheet("background-color: #f5f5f5; border: none;")
-        layout.addWidget(self.chat_display)
-
-        # Message input area
-        bottom_bar = QHBoxLayout()
-        bottom_bar.setSpacing(0)
-        self.message_input = QLineEdit(self)
-        self.message_input.setPlaceholderText("Type your message here...")
-        bottom_bar.addWidget(self.message_input)
+        # Etichetta con il testo
+        self.label = QLabel(f"Add users to group '{self.group_name}'")
+        self.label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(self.label)
         
-        send_button = QPushButton("Send", self)
-        send_button.clicked.connect(self.send_message)
-        send_button.setFixedSize(70, 42)
-        send_button.setStyleSheet(
-        "color: white; background-color: #5CB7DA; border: 2px solid #28a4d4; border-top-right-radius: 15px; border-bottom-right-radius: 15px; margin-right: 5px; font-size: 16px; font-weight: bold;")
+        # Layout per il campo di input e il pulsante Add
+        input_layout = QHBoxLayout()
+        self.user_input = QLineEdit(self)
+        input_layout.addWidget(self.user_input)
         
-        bottom_bar.addWidget(send_button)
+        self.add_button = QPushButton('Add', self)
+        input_layout.addWidget(self.add_button)
+        layout.addLayout(input_layout)
         
-        layout.addLayout(bottom_bar)
+        # Pulsante End
+        self.end_button = QPushButton('End', self)
+        layout.addWidget(self.end_button)
+        
+        # Centra tutto il contenuto
+        layout.setAlignment(self.label, Qt.AlignCenter)
+        layout.setAlignment(input_layout, Qt.AlignCenter)
+        layout.setAlignment(self.end_button, Qt.AlignCenter)
         
         self.setLayout(layout)
-        self.apply_style()
-
-        # Set up a timer to fetch messages every second
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.fetch_messages)
-    
-    def fetch_messages(self):
-        download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
-        messages = load_group(self.group ,self.main_window.user_menu.db.chats)
-        if len(messages) > self.chat_length:
-            self.chat_display.clear()
-            for message in messages:
-                message = decrypt_message(message, self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.keys)
-                self.add_message(message["sender"], message["message"].decode())
-            self.chat_length = len(messages)
-
-    def apply_style(self):
-        style = """
-        QLabel {
-            font-size: 18px;
-            font-weight: bold;
-        }
-        QTextEdit {
-            background-color: #F0F0F0;
-            padding: 10px;
-            font-size: 16px;
-        }
-        QLineEdit {
-            padding: 10px;
-            font-size: 16px;
-            border-top-left-radius: 15px;
-            border-bottom-left-radius: 15px;
-            border: 1px solid #1A1A1A;
-            margin-left: 5px;
-        }
-        QPushButton:hover {
-            background-color: #3B3B3B;
-        }
-        """
-        self.setStyleSheet(style)
-
-    def send_message(self):
-        message = self.message_input.text().strip()
-        if message:
-            send_message(bytes(message, 'utf-8'),self.main_window.user_menu.username, self.chat_user, self.main_window.user_menu.db.chats, self.main_window.user_menu.db.keys)
-            self.add_message(self.main_window.user_menu.username, message)
-            self.message_input.clear()
-
-    def add_message(self, sender, message):
-        if sender == self.main_window.user_menu.username:
-            alignment = Qt.AlignRight
-        else:
-            alignment = Qt.AlignLeft
-
-        self.chat_display.append(f"<p style='text-align: {alignment};'><b>{sender}:</b> {message}</p>")
-
-    def go_back(self):
-        self.timer.stop()
-        self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
         
+        self.add_button.clicked.connect(self.add_user)
+        self.end_button.clicked.connect(self.close)
+
+    def closeDialog(self):
+        self.close()
+
+
+    def add_user(self):
+        new_member = self.user_input.text()
+        if send_initial_message(self.username, new_member, self.db.keys, self.db.chats, 'INIT_GROUP', self.group_key, self.group_name) != -1:
+            print(f"User '{new_member}' added to group '{self.group_name}'")
+        self.user_input.clear()
+      
 
 
 if __name__ == "__main__":
