@@ -377,7 +377,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
     key_bundle = fetch_key_bundle(destination)
     if key_bundle.status_code != 200:
         print(f"User {destination} not found")
-        return
+        return -1
     key_bundle = key_bundle.json()
 
     if signature_check(key_bundle):
@@ -457,7 +457,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
         if response.status_code != 200:
             print("Error in sending message")
             print(response.text)
-            return
+            return -1
         
         # Save INIT message in the local database
         chats_collection.insert_one(payload)
@@ -484,7 +484,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
     else:
         print("Signature check failed")
         print("Aborting chat...")
-        return
+        return -1
 
 def handle_initial_message(msg, keys_collection):
     identity_key = msg["message"]["identity_key"]
@@ -609,7 +609,10 @@ def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce_d
 def decrypt_message(msg,user,other_user,keys_collection, nonce_dim = 32):
     local_keys = keys_collection.find_one({"username": user})
     sk = bytes.fromhex(local_keys[other_user]["SK"])
-    ad = bytes.fromhex(local_keys[other_user]["AD"])
+    if local_keys[other_user]["AD"] != None:
+        ad = bytes.fromhex(local_keys[other_user]["AD"])
+    else:
+        ad = None
     aesgcm = AESGCM(sk)
     nonce = bytes.fromhex(msg["message"])[:nonce_dim]
     message = bytes.fromhex(msg["message"])[nonce_dim:]
@@ -623,6 +626,12 @@ def download_new_messages(username, db):
     for msg in request.json()["messages"]:
         if msg["type"] == "INIT" or msg["type"] == "INIT_GROUP":
             handle_initial_message(msg,db.keys)
+        #Save on local database
+        db.chats.insert_one(msg)
+
+    groups = get_active_groups(username,db.chats)
+    request = requests.post(SERVER + "/receive_group_messages", json.dumps({"username": username, "groups": groups}), headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    for msg in request.json()["messages"]:
         #Save on local database
         db.chats.insert_one(msg)
 
@@ -640,7 +649,8 @@ def get_active_chats(username, chats_collection):
 def create_group(username, name, members,keys_collection, chats_collection):
     group_key = secrets.token_bytes(32)
     for member in members:
-        send_initial_message(username,member, keys_collection, chats_collection, 'INIT_GROUP', group_key, name)
+        if send_initial_message(username,member, keys_collection, chats_collection, 'INIT_GROUP', group_key, name) == -1:
+            return -1
 
     
 
@@ -654,6 +664,12 @@ def get_active_groups(username, chats_collection):
 
 def load_chat(user1, user2, chats_collection):
     return list(chats_collection.find({"$or":[{"receiver": user1,"sender":user2,"type":"MSG"}, {"receiver": user2, "sender": user1, "type":"MSG"}]}).sort("timestamp",ASCENDING))
+
+
+def load_group(group, chats_collection):
+    return list(chats_collection.find({"receiver": group,"type":"MSG"}).sort("timestamp",ASCENDING))
+
+
 
 def show_chat(user1,user2, chats_collection):
     messages = list(chats_collection.find({"$or":[{"receiver": user1,"sender":user2,"type":"MSG"}, {"receiver": user2, "sender": user1, "type":"MSG"}]}).sort("timestamp",ASCENDING))
@@ -716,7 +732,6 @@ def menu_user(username):
         download_new_messages(username,db)
         groups = list(get_active_groups(username,chats_collection))
         send_message(b"Hello! How are you!",username, groups[0],chats_collection, keys_collection)
-        request = requests.post(SERVER + "/receive_group_messages", json.dumps({"username": username, "groups": groups}), headers = {"Content-Type": "application/json", "Accept": "application/json"})
         print(request.json())
         
 def main():

@@ -8,7 +8,7 @@ from PyQt5.QtGui import QPixmap, QCursor
 
 from cryptography.hazmat.primitives import hashes
 
-from client import download_new_messages, login, register, generate_keys, get_active_chats, connect_local_db, export_keys, load_chat, send_message, send_initial_message, decrypt_message
+from client import *
 
 
 class MainWindow(QMainWindow):
@@ -42,6 +42,8 @@ class MainWindow(QMainWindow):
         self.central_widget.addWidget(self.user_menu)
         self.central_widget.addWidget(self.chat_list_window)
         self.central_widget.addWidget(self.chat_window)
+        self.central_widget.addWidget(self.group_list_window)
+        self.central_widget.addWidget(self.group_window)
 
     def init_main_menu(self):
         layout = QVBoxLayout()
@@ -412,7 +414,7 @@ class UserMenu(QWidget):
         self.layout.addWidget(self.chats_button, alignment=Qt.AlignCenter)
         
         self.groups_button = QPushButton("Groups")
-        self.groups_button.clicked.connect(self.show_groups)
+        self.groups_button.clicked.connect(self.show_groups())
         self.groups_button.setStyleSheet("""
             QPushButton {
                 background-color: white;
@@ -458,8 +460,18 @@ class UserMenu(QWidget):
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window)
         self.main_window.chat_list_window.timer.start(1000)
 
+
     def show_groups(self):
-        pass
+        # We want to download new messages before showing groups
+        download_new_messages(self.username ,self.main_window.user_menu.db.chats)
+        # Getthe list of active groups
+        groups = get_active_groups(self.username, self.main_window.user_menu.db.chats)
+        self.main_window.chat_list_window.search_input.clear()
+        self.main_window.chat_list_window.chat_list.clear()
+        self.main_window.chat_list_window.set_groups(groups)
+        self.main_window.central_widget.setCurrentWidget(self.main_window.chat_list_window)
+        self.main_window.chat_list_window.timer.start(1000)
+
 
 class ChatListWindow(QWidget):
     def __init__(self, main_window):
@@ -534,7 +546,7 @@ class ChatListWindow(QWidget):
     def new_chat(self):
         user = self.search_input.text().strip()
         if user != "":
-            send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats)
+            send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats,"INIT")
             self.main_window.chat_window.set_chat_user(user)
             self.main_window.chat_window.timer.start(1000)
             self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
@@ -719,26 +731,26 @@ class GroupListWindow(QWidget):
         # Create a search bar
         search_bar = QHBoxLayout()
         self.search_input = QLineEdit(self)
-        self.search_input.setPlaceholderText("Search for a user")
+        self.search_input.setPlaceholderText("Search for a group")
         self.search_input.textChanged.connect(self.filter_chats)
         search_bar.addWidget(self.search_input)
 
-        contact_button = QPushButton("New Chat", self)
-        contact_button.clicked.connect(self.new_chat)
+        contact_button = QPushButton("New Group", self)
+        contact_button.clicked.connect(self.new_group())
         search_bar.addWidget(contact_button)
 
         layout.addLayout(search_bar)
 
-        self.chat_list = QListWidget(self)
-        self.chat_list.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
-        layout.addWidget(self.chat_list)
+        self.group_list = QListWidget(self)
+        self.group_list.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
+        layout.addWidget(self.group_list)
     
         self.setLayout(layout)
         self.apply_style()
 
         # Set up a timer to fetch messages every second
         self.timer = QTimer(self)
-        self.timer.timeout.connect(self.fetch_chats)
+        self.timer.timeout.connect(self.fetch_groups)
 
     def apply_style(self):
         style = """
@@ -769,22 +781,21 @@ class GroupListWindow(QWidget):
         """
         self.setStyleSheet(style)
 
-    def new_chat(self):
-        user = self.search_input.text().strip()
-        if user != "":
-            send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats)
-            self.main_window.chat_window.set_chat_user(user)
-            self.main_window.chat_window.timer.start(1000)
-            self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+    def new_group(self):
+        members = self.search_input.text().split(',')
+        if create_group(self.main_window.user_menu.username, members[0], members[1:],self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats) != -1:    
+            self.main_window.group_window.set_group(members[0])
+            self.main_window.group_window.timer.start(1000)
+            self.main_window.central_widget.setCurrentWidget(self.main_window.group_window)
 
-    def set_chats(self, chats):
-        self.chats = chats
-        self.display_chats(chats)
+    def set_groups(self, groups):
+        self.groups = groups
+        self.display_chats(groups)
 
-    def fetch_chats(self):
+    def fetch_groups(self):
         download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
-        chats = get_active_chats(self.main_window.user_menu.username, self.main_window.user_menu.db.chats)
-        self.display_chats(chats)
+        groups = get_active_groups(self.main_window.user_menu.username, self.main_window.user_menu.db.chats)
+        self.display_chats(groups)
 
     def display_chats(self, chats):
         self.chat_list.clear()
@@ -815,16 +826,16 @@ class GroupWindow(QWidget):
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
-        self.chat_user = None
+        self.group = None
         self.chat_length = 0
         self.init_ui()
 
-    def set_chat_user(self, chat_user):
-        self.chat_user = chat_user
+    def set_group(self, group):
+        self.group = group
         self.chat_length = 0
         self.chat_display.clear()
-        self.setWindowTitle(self.chat_user)
-        self.user_label.setText(self.chat_user)
+        self.setWindowTitle(self.group)
+        self.user_label.setText(self.group)
     
     def init_ui(self):
         layout = QVBoxLayout()
@@ -877,7 +888,7 @@ class GroupWindow(QWidget):
     
     def fetch_messages(self):
         download_new_messages(self.main_window.user_menu.username, self.main_window.user_menu.db)
-        messages = load_chat(self.main_window.user_menu.username, self.chat_user ,self.main_window.user_menu.db.chats)
+        messages = load_group(self.group ,self.main_window.user_menu.db.chats)
         if len(messages) > self.chat_length:
             self.chat_display.clear()
             for message in messages:
