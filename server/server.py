@@ -195,7 +195,7 @@ def receive_messages():
     except KeyError as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
-# Function that fetch the messages from user "sender" to user "receiver"
+# Function that fetch the messages for groups and not received by user
 @app.route('/receive_group_messages', methods=['POST'])
 def receive_group_messages():
     data = request.get_json()
