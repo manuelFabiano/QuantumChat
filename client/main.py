@@ -7,10 +7,8 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QPixmap, QCursor
 import secrets
 from cryptography.hazmat.primitives import hashes
-
-from client import download_new_messages, login, register, generate_keys, get_active_chats, connect_local_db, export_keys, load_chat, send_message, send_initial_message, decrypt_message, get_active_groups, load_group
-
-
+from db_connections import *
+from chats import *
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
