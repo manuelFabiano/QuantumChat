@@ -10,56 +10,7 @@ from cryptography.hazmat.primitives import hashes
 
 from client import download_new_messages, login, register, generate_keys, get_active_chats, connect_local_db, export_keys, load_chat, send_message, send_initial_message, decrypt_message, get_active_groups, load_group
 
-
-class MainWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("QuantumChat")
-        self.setContentsMargins(0, 0, 0, 0)
-        self.setFixedSize(360, 640)
-        #self.setGeometry(100, 100, 300, 500)
-
-        self.setStyleSheet("background-color: #fcfcfc;")
-        
-        self.central_widget = QStackedWidget()
-        self.setCentralWidget(self.central_widget)
-        
-        self.main_menu = QWidget()
-        self.login_menu = LoginWindow(self)
-        self.register_menu = RegisterWindow(self)
-        self.user_menu = UserMenu(self)
-        self.chat_list_window = ChatListWindow(self)
-        self.chat_window = ChatWindow(self)
-        self.group_list_window = GroupListWindow(self)
-    
-        
-
-        self.init_main_menu()
-        
-        self.central_widget.addWidget(self.main_menu)
-        self.central_widget.addWidget(self.login_menu)
-        self.central_widget.addWidget(self.register_menu)
-        self.central_widget.addWidget(self.user_menu)
-        self.central_widget.addWidget(self.chat_list_window)
-        self.central_widget.addWidget(self.chat_window)
-        self.central_widget.addWidget(self.group_list_window)
-
-    def init_main_menu(self):
-        layout = QVBoxLayout()
-        
-        
-        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
-
-        logo_label = QLabel(self)
-        pixmap = QPixmap("logo.png").scaled(250, 250, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        logo_label.setPixmap(pixmap)
-        logo_label.setAlignment(Qt.AlignCenter)
-        layout.addWidget(logo_label)
-        
-        # Adding spacing between the logo and buttons
-        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
-
-        style = """
+style = """
     QPushButton {
         background-color: #5CB7DA;
         border: 2px solid #28a4d4;
@@ -77,8 +28,53 @@ class MainWindow(QMainWindow):
         background-color: #6fcaed;
     }
 """
-        
 
+class MainWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("QuantumChat")
+        self.setContentsMargins(0, 0, 0, 0)
+        self.setFixedSize(360, 640)
+        self.setStyleSheet("background-color: #fcfcfc;")
+        
+        self.central_widget = QStackedWidget()
+        self.setCentralWidget(self.central_widget)
+        
+        self.main_menu = QWidget()
+        self.login_menu = LoginWindow(self)
+        self.register_menu = RegisterWindow(self)
+        self.user_menu = UserMenu(self)
+        self.chat_list_window = ChatListWindow(self)
+        self.chat_window = ChatWindow(self)
+        self.group_list_window = GroupListWindow(self)
+    
+        self.init_main_menu()
+        
+        self.central_widget.addWidget(self.main_menu)
+        self.central_widget.addWidget(self.login_menu)
+        self.central_widget.addWidget(self.register_menu)
+        self.central_widget.addWidget(self.user_menu)
+        self.central_widget.addWidget(self.chat_list_window)
+        self.central_widget.addWidget(self.chat_window)
+        self.central_widget.addWidget(self.group_list_window)
+
+    def init_main_menu(self):
+        layout = QVBoxLayout()
+        
+        # Adding spacing between the top of the window and the logo
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        # Adding the logo
+        logo_label = QLabel(self)
+        pixmap = QPixmap("logo.png").scaled(250, 250, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        logo_label.setPixmap(pixmap)
+        logo_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(logo_label)
+        
+        # Adding spacing between the logo and buttons
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        # Login button
         login_button = QPushButton("Login", self)
         login_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.login_menu))
         login_button.setStyleSheet(style)
@@ -90,6 +86,7 @@ class MainWindow(QMainWindow):
         login_button.setGraphicsEffect(effect)
         layout.addWidget(login_button, alignment=Qt.AlignCenter)
         
+        # Register button
         register_button = QPushButton("Register", self)
         register_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.register_menu))
         register_button.setStyleSheet(style)
@@ -101,33 +98,33 @@ class MainWindow(QMainWindow):
         register_button.setGraphicsEffect(effect2)
         layout.addWidget(register_button, alignment=Qt.AlignCenter)
         
+        # Exit button
         exit_button = QPushButton("Exit", self)
         exit_button.clicked.connect(self.close)
         exit_button.setCursor(QCursor(Qt.PointingHandCursor))
         exit_button.setFixedSize(120, 50)
         exit_button.setStyleSheet("""
-    QPushButton {
-        background-color: #e31717;
-        border: 2px solid #c20606;
-        border-radius: 15px;
-        color: #fff;
-        font-size: 20px;
-        font-weight: 600;
-        line-height: normal;
-        text-align: center;
-        text-decoration: none;
+        QPushButton {
+            background-color: #e31717;
+            border: 2px solid #c20606;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: normal;
+            text-align: center;
+            text-decoration: none;
     
-    }
-    QPushButton:hover {
-        color: #fff;
-        background-color: #eb3636;
-    }
-""")    
+        }
+        QPushButton:hover {
+            color: #fff;
+            background-color: #eb3636;
+        }
+        """)    
         effect3 = QGraphicsDropShadowEffect()
         effect3.setOffset(5, 5)
         effect3.setBlurRadius(15)
         exit_button.setGraphicsEffect(effect3)
-        #exit_button.setFixedWidth(200)
         layout.addWidget(exit_button, alignment=Qt.AlignCenter)
 
         # Reducing the vertical spacing between widgets
@@ -145,48 +142,39 @@ class LoginWindow(QWidget):
         self.setWindowTitle("Login")
         self.layout = QVBoxLayout()
         
+        # Adding spacing 
         self.spacer_top = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.layout.addItem(self.spacer_top)
         
+        # Adding the usename label
         self.username_label = QLabel("Username:")
         self.username_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.layout.addWidget(self.username_label, alignment=Qt.AlignCenter)
         
+        # Adding the username input
         self.username_input = QLineEdit()
         self.username_input.setFixedSize(250, 40)  # Aumenta le dimensioni del box di input
         self.username_input.setStyleSheet("font-size: 16px; padding: 10px; background-color: #f5f5f5; border: 1px solid #e6e6e6; border-radius: 5px;")
         self.layout.addWidget(self.username_input, alignment=Qt.AlignCenter)
         
+        # Adding password label
         self.password_label = QLabel("Password:")
         self.password_label.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.layout.addWidget(self.password_label, alignment=Qt.AlignCenter)
         
+        # Adding password input
         self.password_input = QLineEdit()
         self.password_input.setFixedSize(250, 40)  # Aumenta le dimensioni del box di input
         self.password_input.setEchoMode(QLineEdit.Password)
         self.password_input.setStyleSheet("font-size: 16px; padding: 10px; background-color: #f5f5f5; border: 1px solid #e6e6e6; border-radius: 5px;")
         self.layout.addWidget(self.password_input, alignment=Qt.AlignCenter)
+        
         self.layout.setSpacing(15)
+
+        # Adding the login button
         self.register_button = QPushButton("Login")
         self.register_button.setFixedSize(150, 50)  # Aumenta le dimensioni del bottone
-        self.register_button.setStyleSheet("""
-            QPushButton {
-            background-color: #5CB7DA;
-            border: 2px solid #28a4d4;
-            border-radius: 15px;
-            color: #fff;
-            font-size: 20px;
-            font-weight: 600;
-            line-height: normal;
-            text-align: center;
-            text-decoration: none;
-        
-        }
-        QPushButton:hover {
-            color: #fff;
-            background-color: #6fcaed;
-        }   
-        """)
+        self.register_button.setStyleSheet(style)
         self.register_button.clicked.connect(self.login)
         effect = QGraphicsDropShadowEffect()
         effect.setOffset(3, 3)
@@ -198,7 +186,7 @@ class LoginWindow(QWidget):
         self.back_button = QPushButton("Back")
         self.back_button.setFixedSize(100, 40)  # Aumenta le dimensioni del bottone
         self.back_button.setStyleSheet("""
-            QPushButton {
+        QPushButton {
         background-color: #e31717;
         border: 2px solid #c20606;
         border-radius: 15px;
@@ -383,57 +371,88 @@ class UserMenu(QWidget):
         self.setWindowTitle("User Menu")
         
         self.layout = QVBoxLayout()
-        
+        self.layout.setSpacing(15)
         self.spacer_top = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
         self.layout.addItem(self.spacer_top)
         
         self.welcome_label = QLabel()
-        self.welcome_label.setStyleSheet("font-size: 18px; font-weight: bold;")
+        self.welcome_label.setStyleSheet("font-size: 30px; font-weight: bold;")
         self.welcome_label.setAlignment(Qt.AlignCenter)
         self.layout.addWidget(self.welcome_label)
-        
+
+        self.spacer_mid = QSpacerItem(10, 10, QSizePolicy.Minimum, QSizePolicy.Expanding)
+        self.layout.addItem(self.spacer_mid)
+
         self.chats_button = QPushButton("Chats")
         self.chats_button.clicked.connect(self.show_chats)
+        self.chats_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.chats_button.setFixedSize(150, 50)
         self.chats_button.setStyleSheet("""
-            QPushButton {
-                background-color: white;
-                border: 2px solid #1A1A1A;
-                border-radius: 15px;
-                color: #3B3B3B;
-                font-weight: 600;
-                padding: 16px 24px;
-                text-align: center;
-                text-decoration: none;
-            }
-            QPushButton:hover {
-                color: #fff;
-                background-color: #1A1A1A
-            }
+        QPushButton {
+            background-color: #5CB7DA;
+            border: 2px solid #28a4d4;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: normal;
+            text-align: center;
+            text-decoration: none;
+        
+        }
+        QPushButton:hover {
+            color: #fff;
+            background-color: #6fcaed;
+        }  
         """)
         self.layout.addWidget(self.chats_button, alignment=Qt.AlignCenter)
         
         self.groups_button = QPushButton("Groups")
         self.groups_button.clicked.connect(self.show_groups)
+        self.groups_button.setCursor(QCursor(Qt.PointingHandCursor))
+        self.groups_button.setFixedSize(150, 50)
         self.groups_button.setStyleSheet("""
             QPushButton {
-                background-color: white;
-                border: 2px solid #1A1A1A;
-                border-radius: 15px;
-                color: #3B3B3B;
-                font-weight: 600;
-                padding: 16px 24px;
-                text-align: center;
-                text-decoration: none;
-            }
-            QPushButton:hover {
-                color: #fff;
-                background-color: #1A1A1A
-            }
+            background-color: #5CB7DA;
+            border: 2px solid #28a4d4;
+            border-radius: 15px;
+            color: #fff;
+            font-size: 20px;
+            font-weight: 600;
+            line-height: normal;
+            text-align: center;
+            text-decoration: none;
+        
+        }
+        QPushButton:hover {
+            color: #fff;
+            background-color: #6fcaed;
+        }  
         """)
         self.layout.addWidget(self.groups_button, alignment=Qt.AlignCenter)
         
         self.back_button = QPushButton("Back")
+        self.back_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.back_button.clicked.connect(lambda: self.main_window.central_widget.setCurrentWidget(self.main_window.main_menu))
+        self.back_button.setFixedSize(100, 40)  # Aumenta le dimensioni del bottone
+        self.back_button.setStyleSheet("""
+            QPushButton {
+        background-color: #e31717;
+        border: 2px solid #c20606;
+        border-radius: 15px;
+        color: #fff;
+        font-size: 20px;
+        font-weight: 600;
+        line-height: normal;
+        text-align: center;
+        text-decoration: none;
+    
+    }
+    QPushButton:hover {
+        color: #fff;
+        background-color: #eb3636;
+    }
+        """)
         self.layout.addWidget(self.back_button, alignment=Qt.AlignCenter)
 
         self.spacer_bottom = QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding)
@@ -491,11 +510,31 @@ class ChatListWindow(QWidget):
         # Create a search bar
         search_bar = QHBoxLayout()
         self.search_input = QLineEdit(self)
-        self.search_input.setPlaceholderText("Search for a user")
+        self.search_input.setPlaceholderText("Start a new chat...")
         self.search_input.textChanged.connect(self.filter_chats)
         search_bar.addWidget(self.search_input)
 
         contact_button = QPushButton("New Chat", self)
+        contact_button.setCursor(QCursor(QtCore.Qt.PointingHandCursor))
+        contact_button.setFixedSize(70, 40)
+        contact_button.setStyleSheet("""
+        QPushButton {
+            background-color: #5CB7DA;
+            border: 1px solid #28a4d4;
+            border-radius: 10px;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: normal;
+            text-align: center;
+            text-decoration: none;
+        
+        }
+        QPushButton:hover {
+            color: #fff;
+            background-color: #6fcaed;
+        }  
+        """)
         contact_button.clicked.connect(self.new_chat)
         search_bar.addWidget(contact_button)
 
@@ -573,7 +612,6 @@ class ChatListWindow(QWidget):
     def open_chat(self, item):
         self.timer.stop()
         chat_user = item.text()
-        print(f"Opening chat with {chat_user}")
         self.main_window.chat_window.set_chat_user(chat_user)
         self.main_window.chat_window.timer.start(1000)
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
@@ -735,8 +773,7 @@ class GroupListWindow(QWidget):
         # Create a search bar
         search_bar = QHBoxLayout()
         self.search_input = QLineEdit(self)
-        self.search_input.setPlaceholderText("Search for a group")
-        self.search_input.textChanged.connect(self.filter_groups)
+        self.search_input.setPlaceholderText("Start a new group chat...")
         search_bar.addWidget(self.search_input)
 
         contact_button = QPushButton("New Group", self)
@@ -823,7 +860,6 @@ class GroupListWindow(QWidget):
     def open_group(self, item):
         self.timer.stop()
         chat_user = item.text()
-        print(f"Opening chat with {chat_user}")
         self.main_window.chat_window.set_chat_user(chat_user, "GROUP")
         self.main_window.chat_window.timer.start(1000)
         self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
