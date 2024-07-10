@@ -125,16 +125,6 @@ def generate_prekey(username):
     else:
         print(TerminalColors.WARNING + "Warning: Error inserting new curve prekey" + TerminalColors.END)
     
-
-
-
-
-
-
-
-
-
-
 def connect_local_db(username):
     mongo_host = os.getenv('MONGO_HOST', 'localhost')
     mongo_port = int(os.getenv('MONGO_PORT', '27018'))
