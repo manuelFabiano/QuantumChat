@@ -31,9 +31,9 @@ style = """
 """
 
 COLORS = [
-    "red", "green", "blue", "yellow", "purple", "orange", "pink",
-    "brown", "black", "white", "gray", "cyan", "magenta", "lime",
-    "maroon", "navy", "olive", "teal", "aqua", "fuchsia", "silver"
+    "red", "green", "blue", "purple", "orange", "pink",
+    "brown", "black", "white", "gray", "magenta", "lime",
+    "maroon", "navy", "olive", "teal", "fuchsia", "silver"
 ]
 
 class MainWindow(QMainWindow):

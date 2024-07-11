@@ -143,7 +143,6 @@ def handle_initial_message(msg, keys_collection):
 
     for key in local_keys["private_prekey"]:
         if key["id"] == msg["message"]["public_prekey_id"]:
-            print(key["key"])
             spk = X25519_private_key_decoder(key["key"])
             break
 
@@ -233,7 +232,6 @@ def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce_d
         "message": nonce.hex() + encrypted_message,
         "timestamp": time.time()
     }
-
     #Save on local database
     chats_collection.insert_one(payload)
     if "_id" in payload:
@@ -242,7 +240,12 @@ def send_message(msg,sender,receiver, chats_collection, keys_collection ,nonce_d
     payload = json.dumps(payload, indent=4)
     url = SERVER + "/send_message"
     response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
-    if response.status_code != 200:
+    if response.status_code == 200:
+        print("\nMessage sent: \n")
+        print("Plaintext message: ", msg.decode())
+        print("")
+        print("Ciphertext message: ", encrypted_message)    
+    else:    
         print("Error in sending message")
         print(response.text)
         return
