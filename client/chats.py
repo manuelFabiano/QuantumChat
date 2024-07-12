@@ -18,7 +18,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
     key_bundle = fetch_key_bundle(destination)
     if key_bundle.status_code != 200:
         print(f"User {destination} not found")
-        return -1
+        return {"code": -1,'error': 'User not found!'}
     key_bundle = key_bundle.json()
 
     if signature_check(key_bundle):
@@ -98,7 +98,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
         if response.status_code != 200:
             print("Error in sending message")
             print(response.text)
-            return -1
+            return {"code": -1,'error': 'Error in sending message!'}
         
         # Save INIT message in the local database
         chats_collection.insert_one(payload)
@@ -112,7 +112,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
                 "AD" : ad.hex()
             }}}  # Create a field for the receiver of chat containing SK and AD
             )
-            return (sk,ad)
+            return {"code":0, "sk": sk, "ad":ad}
         else:
             keys_collection.update_one(
             {'username': username},
@@ -121,11 +121,11 @@ def send_initial_message(username,destination, keys_collection, chats_collection
                 "AD" : None
             }}}  # Create a field for the receiver of chat containing SK and AD
             )
-            return (sk,ad)
+            return {"code":0, "sk": sk, "ad":ad}
     else:
         print("Signature check failed")
         print("Aborting chat...")
-        return -1
+        return {"code": -1,'error': 'Signature check failed!'}
 
 def handle_initial_message(msg, keys_collection):
     identity_key = msg["message"]["identity_key"]
@@ -292,7 +292,7 @@ def get_active_chats(username, chats_collection):
 def create_group(username, name, members,keys_collection, chats_collection):
     group_key = secrets.token_bytes(32)
     for member in members:
-        if send_initial_message(username,member, keys_collection, chats_collection, 'INIT_GROUP', group_key, name) == -1:
+        if send_initial_message(username,member, keys_collection, chats_collection, 'INIT_GROUP', group_key, name)["code"] == -1:
             return -1
 
     

@@ -248,7 +248,7 @@ class LoginWindow(QWidget):
             self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
             
         else:
-            QMessageBox.warning(self, "Error", response.text)
+            QMessageBox.warning(self, "Error", response.json()["error"])
 
 class RegisterWindow(QWidget):
     def __init__(self, main_window):
@@ -352,7 +352,7 @@ class RegisterWindow(QWidget):
             self.main_window.user_menu.set_username(username)
             self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
         else:
-            QMessageBox.warning(self, "Error", response.text)
+            QMessageBox.warning(self, "Error", response.json()["error"])
 
 class UserMenu(QWidget):
     def __init__(self, main_window):
@@ -568,11 +568,13 @@ class ChatListWindow(QWidget):
 
     def new_chat(self):
         user = self.search_input.text().strip()
-        if user != "":
-            send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats,"INIT")
+        response = send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats,"INIT")
+        if user != "" and response["code"] !=-1:
             self.main_window.chat_window.set_chat_user(user)
             self.main_window.chat_window.timer.start(1000)
             self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+        else:
+             QMessageBox.warning(self, "Error", response["error"])
 
     def set_chats(self, chats):
         self.chats = chats
@@ -964,8 +966,11 @@ class AddUserDialog(QDialog):
 
     def add_user(self):
         new_member = self.user_input.text()
-        if send_initial_message(self.username, new_member, self.db.keys, self.db.chats, 'INIT_GROUP', self.group_key, self.group_name) != -1:
+        response = send_initial_message(self.username, new_member, self.db.keys, self.db.chats, 'INIT_GROUP', self.group_key, self.group_name)
+        if new_member != "" and response["code"] !=-1:
             print(f"User '{new_member}' added to group '{self.group_name}'")
+        else:
+            QMessageBox.warning(self, "Error", response["error"])
         self.user_input.clear()
       
 
