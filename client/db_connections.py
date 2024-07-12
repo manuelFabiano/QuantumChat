@@ -165,6 +165,15 @@ def login(username,password):
             generate_last_resort(username)
     return response
 
+def check_group(group_name):
+    url = SERVER + "/check_group"
+    payload = {
+        "group_name": group_name
+    }
+    payload = json.dumps(payload, indent=4)
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
+    return response.json()["exists"]
+
 def read_keys(username):
     '''
     Read keys from json file

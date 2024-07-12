@@ -32,8 +32,8 @@ style = """
 
 COLORS = [
     "red", "green", "blue", "purple", "orange", "pink",
-    "brown", "black", "white", "gray", "magenta", "lime",
-    "maroon", "navy", "olive", "teal", "fuchsia", "silver"
+    "brown", "black", "magenta", "lime",
+    "maroon", "navy", "olive", "teal", "fuchsia"
 ]
 
 class MainWindow(QMainWindow):
@@ -237,18 +237,23 @@ class LoginWindow(QWidget):
         digest.update(password.encode())
         password_hashed = digest.finalize().hex()
         
-        response = login(username, password_hashed)
-        if response.status_code == 200:
-            self.username_input.clear()
-            self.password_input.clear()
-            self.main_window.user_menu.username = username
-            self.main_window.user_menu.set_username(username)
-            # After the login, connect to local db
-            self.main_window.user_menu.db = connect_local_db(username)
-            self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
+        try:
+            response = login(username, password_hashed)
             
-        else:
-            QMessageBox.warning(self, "Error", response.json()["error"])
+            if response.status_code == 200:
+                self.username_input.clear()
+                self.password_input.clear()
+                self.main_window.user_menu.username = username
+                self.main_window.user_menu.set_username(username)
+                # After the login, connect to local db
+                self.main_window.user_menu.db = connect_local_db(username)
+                self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
+                
+            else:
+                QMessageBox.warning(self, "Error", response.json()["error"])
+        except Exception as e:
+            QMessageBox.warning(self, "Error", "Unable to connect to the server")
+
 
 class RegisterWindow(QWidget):
     def __init__(self, main_window):
@@ -340,19 +345,22 @@ class RegisterWindow(QWidget):
         
         keys = generate_keys()
         
-        response = register(username, password_hashed, keys[1])
-        if response.status_code == 200:
-            self.username_input.clear()
-            self.password_input.clear()
-            # After the login, connect to local db
-            self.main_window.user_menu.db = connect_local_db(username)
-            # Save the keys in the local db
-            export_keys(username,keys[0], self.main_window.user_menu.db.keys)
-            # Change window
-            self.main_window.user_menu.set_username(username)
-            self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
-        else:
-            QMessageBox.warning(self, "Error", response.json()["error"])
+        try:
+            response = register(username, password_hashed, keys[1])
+            if response.status_code == 200:
+                self.username_input.clear()
+                self.password_input.clear()
+                # After the login, connect to local db
+                self.main_window.user_menu.db = connect_local_db(username)
+                # Save the keys in the local db
+                export_keys(username,keys[0], self.main_window.user_menu.db.keys)
+                # Change window
+                self.main_window.user_menu.set_username(username)
+                self.main_window.central_widget.setCurrentWidget(self.main_window.user_menu)
+            else:
+                QMessageBox.warning(self, "Error", response.json()["error"])
+        except Exception as e:
+            QMessageBox.warning(self, "Error", "Unable to connect to the server")
 
 class UserMenu(QWidget):
     def __init__(self, main_window):
@@ -880,8 +888,11 @@ class GroupListWindow(QWidget):
     def new_group(self):
         group_name = self.search_input.text().strip()
         if group_name != "":
-            dialog = AddUserDialog(self.main_window.user_menu.username ,group_name, self.main_window.user_menu.db)
-            dialog.exec_()
+            if check_group(group_name) != True:
+                dialog = AddUserDialog(self.main_window.user_menu.username ,group_name, self.main_window.user_menu.db)
+                dialog.exec_()
+            else:
+                QMessageBox.warning(self, "Error", "Group name already in use!", QMessageBox.Ok)
         """
         user = self.search_input.text().strip()
         if user != "":

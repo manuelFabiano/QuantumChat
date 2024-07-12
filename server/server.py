@@ -85,62 +85,68 @@ def register():
 
 
 # Function that fetch the prekey bundle of a user from the database
-@app.route('/fetch_prekey_bundle/<username>', methods=['GET'])
-def fetch_prekey_bundle(username):
-    user = keys_collection.find_one({"username": username})
-    
-    if not user:
-        return jsonify({"error": "User not found"}), 404
-    
-    public_keys = user.get("public_keys", {})
-    
-    # Get user keys:
-    public_identity_key = public_keys.get("public_identity_key")
-    public_prekey = public_keys.get("public_prekey")
-    
-    # Get pqkem keys:
-    public_one_time_pqkem_prekey_list = public_keys.get("public_one_time_pqkem_prekeys", [])
+@app.route('/fetch_prekey_bundle', methods=['POST'])
+def fetch_prekey_bundle():
+    data = request.get_json()
 
-    if len(public_one_time_pqkem_prekey_list) > 0:
-        public_one_time_pqkem_prekey = public_one_time_pqkem_prekey_list[0]
-        # Pop the keys from the database
-        keys_collection.update_one(
-            {"username": username},
-            {"$pop": {
-                "public_keys.public_one_time_pqkem_prekeys": -1
-            }}
-        )
-        public_last_resort_pqkem_key = None
-    else:
-        public_one_time_pqkem_prekey = None
-        public_last_resort_pqkem_key = public_keys.get("public_last_resort_pqkem_key")
-    
-    # Get one time curve keys:
-    public_one_time_prekey_list = public_keys.get("public_one_time_prekeys", [])
-    
-    if len(public_one_time_prekey_list) > 0:
-        public_one_time_prekey = public_one_time_prekey_list[0]
-        # Pop the keys from the database
-        keys_collection.update_one(
-            {"username": username},
-            {"$pop": {"public_keys.public_one_time_prekeys": -1}}
-        )
-    else:
-        public_one_time_prekey = None
-    
-    prekey_bundle = {
-        "public_identity_key": public_identity_key,
-        "public_prekey": public_prekey,
-        "public_one_time_prekey": public_one_time_prekey,
-        "public_one_time_pqkem_prekey": public_one_time_pqkem_prekey,
-        "public_last_resort_pqkem_key": public_last_resort_pqkem_key
-    } 
-    return jsonify(prekey_bundle), 200
+    try:
+        username = data['username']
+
+        user = keys_collection.find_one({"username": username})
+        
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        public_keys = user.get("public_keys", {})
+        
+        # Get user keys:
+        public_identity_key = public_keys.get("public_identity_key")
+        public_prekey = public_keys.get("public_prekey")
+        
+        # Get pqkem keys:
+        public_one_time_pqkem_prekey_list = public_keys.get("public_one_time_pqkem_prekeys", [])
+
+        if len(public_one_time_pqkem_prekey_list) > 0:
+            public_one_time_pqkem_prekey = public_one_time_pqkem_prekey_list[0]
+            # Pop the keys from the database
+            keys_collection.update_one(
+                {"username": username},
+                {"$pop": {
+                    "public_keys.public_one_time_pqkem_prekeys": -1
+                }}
+            )
+            public_last_resort_pqkem_key = None
+        else:
+            public_one_time_pqkem_prekey = None
+            public_last_resort_pqkem_key = public_keys.get("public_last_resort_pqkem_key")
+        
+        # Get one time curve keys:
+        public_one_time_prekey_list = public_keys.get("public_one_time_prekeys", [])
+        
+        if len(public_one_time_prekey_list) > 0:
+            public_one_time_prekey = public_one_time_prekey_list[0]
+            # Pop the keys from the database
+            keys_collection.update_one(
+                {"username": username},
+                {"$pop": {"public_keys.public_one_time_prekeys": -1}}
+            )
+        else:
+            public_one_time_prekey = None
+        
+        prekey_bundle = {
+            "public_identity_key": public_identity_key,
+            "public_prekey": public_prekey,
+            "public_one_time_prekey": public_one_time_prekey,
+            "public_one_time_pqkem_prekey": public_one_time_pqkem_prekey,
+            "public_last_resort_pqkem_key": public_last_resort_pqkem_key
+        } 
+        return jsonify(prekey_bundle), 200
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
 @app.route('/send_message', methods=['POST'])
 def send_message():
     data = request.get_json()
-    print(data)
     try:
         type =  data["type"]
         sender = data["sender"]
@@ -150,18 +156,15 @@ def send_message():
 
         if(type=="INIT_GROUP"):
             #Save message on MongoDB
-            if chats_collection.find_one({'type': "INIT_GROUP", "group_name": data["group_name"]}):
-                return jsonify({'error': 'Group name already in use!'}), 400
-            else:
-                chats_collection.insert_one({
-                    "type" : type,
-                    "received" : dict(),
-                    "sender": sender,
-                    "receiver": receiver,
-                    "message": message,
-                    "timestamp": timestamp,
-                    "group_name" : data["group_name"]
-                })
+            chats_collection.insert_one({
+                "type" : type,
+                "received" : dict(),
+                "sender": sender,
+                "receiver": receiver,
+                "message": message,
+                "timestamp": timestamp,
+                "group_name" : data["group_name"]
+            })
         else:
             #Save message on MongoDB
             chats_collection.insert_one({
@@ -251,6 +254,19 @@ def insert_new_keys():
     except KeyError as e:
         return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
+#Function to check if a group exists
+@app.route('/check_group', methods=['POST'])
+def check_group():
+    data = request.get_json()
+    try:
+        group_name = data["group_name"]
+        
+        if chats_collection.find_one({'type': "INIT_GROUP", "group_name": group_name}):
+            return jsonify({'exists': True}), 200
+        else:
+            return jsonify({'exists': False}), 200
+    except KeyError as e:
+        return jsonify({'error': 'Wrong data format: {}'.format(str(e))}), 400
 
 if __name__ == '__main__':
     print('Server running on port 5000')

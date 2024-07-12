@@ -18,21 +18,13 @@ services:
     volumes:
       - mongo-data:/data/db
   
-  bob-db:
+  client-db:
     image: mongo:latest
     ports:
       - "27018:27017"
     volumes:
-      - bob-mongo-data:/data/db
-
-  alice-db:
-    image: mongo:latest
-    ports:
-      - "27019:27017"
-    volumes:
-      - alice-mongo-data:/data/db
+      - client-mongo-data:/data/db
 
 volumes:
   mongo-data:
-  bob-mongo-data:
-  alice-mongo-data:
+  client-mongo-data:

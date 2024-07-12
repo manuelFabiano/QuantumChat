@@ -225,8 +225,9 @@ def fetch_key_bundle(username):
     '''
     Function to get public keys of a user
     '''
-    url = f"{SERVER}/fetch_prekey_bundle/{username}"
-    response = requests.get(url)
+    url = f"{SERVER}/fetch_prekey_bundle"
+    payload = json.dumps({"username":username})
+    response = requests.post(url, payload,headers = {"Content-Type": "application/json", "Accept": "application/json"})
     return response
 
 def signature_check(key_bundle):
