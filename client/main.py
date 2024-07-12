@@ -568,13 +568,19 @@ class ChatListWindow(QWidget):
 
     def new_chat(self):
         user = self.search_input.text().strip()
-        response = send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats,"INIT")
-        if user != "" and response["code"] !=-1:
-            self.main_window.chat_window.set_chat_user(user)
-            self.main_window.chat_window.timer.start(1000)
-            self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+        if user != self.main_window.user_menu.username:
+            if user not in get_active_chats(self.main_window.user_menu.username,self.main_window.user_menu.db.chats):
+                response = send_initial_message(self.main_window.user_menu.username, user, self.main_window.user_menu.db.keys, self.main_window.user_menu.db.chats,"INIT")
+                if user != "" and response["code"] !=-1:
+                    self.main_window.chat_window.set_chat_user(user)
+                    self.main_window.chat_window.timer.start(1000)
+                    self.main_window.central_widget.setCurrentWidget(self.main_window.chat_window)
+                else:
+                    QMessageBox.warning(self, "Error", response["error"])
+            else:
+                QMessageBox.warning(self, "Error", "Already existing chat")
         else:
-             QMessageBox.warning(self, "Error", response["error"])
+            QMessageBox.warning(self, "Error", "You can not create a chat with yourself")
 
     def set_chats(self, chats):
         self.chats = chats

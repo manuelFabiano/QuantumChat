@@ -97,8 +97,7 @@ def send_initial_message(username,destination, keys_collection, chats_collection
         response = requests.post(url, payload1,headers = {"Content-Type": "application/json", "Accept": "application/json"})
         if response.status_code != 200:
             print("Error in sending message")
-            print(response.text)
-            return {"code": -1,'error': 'Error in sending message!'}
+            return {"code": -1,'error': response.json()["error"]}
         
         # Save INIT message in the local database
         chats_collection.insert_one(payload)

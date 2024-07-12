@@ -150,20 +150,23 @@ def send_message():
 
         if(type=="INIT_GROUP"):
             #Save message on MongoDB
-            chats_collection.insert_one({
-                "type" : type,
-                "received" : 0,
-                "sender": sender,
-                "receiver": receiver,
-                "message": message,
-                "timestamp": timestamp,
-                "group_name" : data["group_name"]
-            })
+            if chats_collection.find_one({'type': "INIT_GROUP", "group_name": data["group_name"]}):
+                return jsonify({'error': 'Group name already in use!'}), 400
+            else:
+                chats_collection.insert_one({
+                    "type" : type,
+                    "received" : dict(),
+                    "sender": sender,
+                    "receiver": receiver,
+                    "message": message,
+                    "timestamp": timestamp,
+                    "group_name" : data["group_name"]
+                })
         else:
             #Save message on MongoDB
             chats_collection.insert_one({
                 "type" : type,
-                "received" : 0,
+                "received" : dict(),
                 "sender": sender,
                 "receiver": receiver,
                 "message": message,
@@ -181,9 +184,9 @@ def receive_messages():
     try:
         username = data["username"]
 
-        messages = list(chats_collection.find({"receiver": username,"received":0}))
+        messages = list(chats_collection.find({"receiver": username,f"received.{username}":{'$exists': False}}))
         for message in messages:
-            message["received"] = 1
+            message["received"][username] = 1
             chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
             if "_id" in message:
                 del message["_id"]
@@ -206,10 +209,7 @@ def receive_group_messages():
         for group in groups:
             new_messages = list(chats_collection.find({"receiver": group,f"received.{username}":{'$exists': False}, "sender": {"$ne": username}}))
             for message in new_messages:
-                if message["received"] == 0:
-                    message["received"] = dict()
-                message["received"][username] = 1
-                chats_collection.update_one({"_id": message["_id"]}, {"$set": message})
+                chats_collection.update_one({"_id": message["_id"]},{"$set": {f"received.{username}": 1}})
                 if "_id" in message:
                     del message["_id"]
             messages.extend(new_messages)
