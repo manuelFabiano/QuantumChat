@@ -505,7 +505,6 @@ class ChatListWindow(QWidget):
         search_bar = QHBoxLayout()
         self.search_input = QLineEdit(self)
         self.search_input.setPlaceholderText("Start a new chat...")
-        self.search_input.textChanged.connect(self.filter_chats)
         search_bar.addWidget(self.search_input)
 
         contact_button = QPushButton("New Chat", self)
